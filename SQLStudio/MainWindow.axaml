@@ -1,0 +1,679 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:SQLStudio.ViewModels"
+        xmlns:conv="using:SQLStudio.Converters"
+        mc:Ignorable="d" d:DesignWidth="1400" d:DesignHeight="900"
+        x:Class="SQLStudio.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="SQL Studio"
+        Width="1400" Height="900"
+        Background="#0d1117"
+        WindowStartupLocation="CenterScreen">
+    
+    <Window.Resources>
+        <conv:BoolToColorConverter x:Key="BoolToColorConverter"/>
+        <conv:BoolToStringConverter x:Key="BoolToStringConverter"/>
+    </Window.Resources>
+    
+    <Window.Styles>
+        <!-- Global Dark Theme Styles -->
+        <Style Selector="TextBlock">
+            <Setter Property="Foreground" Value="#e6edf3"/>
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="#161b22"/>
+            <Setter Property="BorderBrush" Value="#30363d"/>
+            <Setter Property="Foreground" Value="#e6edf3"/>
+            <Setter Property="CaretBrush" Value="#e6edf3"/>
+            <Setter Property="SelectionBrush" Value="#264f78"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12,10"/>
+        </Style>
+        <Style Selector="TextBox:pointerover">
+            <Setter Property="Foreground" Value="#e6edf3"/>
+        </Style>
+        <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="#1c2128"/>
+            <Setter Property="BorderBrush" Value="#58a6ff"/>
+        </Style>
+        <Style Selector="TextBox:focus">
+            <Setter Property="Foreground" Value="#e6edf3"/>
+        </Style>
+        <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="#1c2128"/>
+            <Setter Property="BorderBrush" Value="#58a6ff"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="ComboBox">
+            <Setter Property="Background" Value="#161b22"/>
+            <Setter Property="BorderBrush" Value="#30363d"/>
+            <Setter Property="Foreground" Value="#e6edf3"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12,8"/>
+        </Style>
+        <Style Selector="ComboBox:pointerover /template/ Border#Background">
+            <Setter Property="Background" Value="#1c2128"/>
+        </Style>
+        <Style Selector="ComboBox:pressed /template/ Border#Background">
+            <Setter Property="Background" Value="#1c2128"/>
+        </Style>
+        <Style Selector="ComboBox /template/ Popup Border">
+            <Setter Property="Background" Value="#161b22"/>
+            <Setter Property="BorderBrush" Value="#30363d"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
+        <Style Selector="ComboBox /template/ Popup Border ScrollViewer">
+            <Setter Property="Background" Value="#161b22"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style Selector="ComboBox /template/ Popup Border ScrollViewer ScrollContentPresenter">
+            <Setter Property="Background" Value="#161b22"/>
+        </Style>
+        <Style Selector="ComboBoxItem">
+            <Setter Property="Foreground" Value="#e6edf3"/>
+            <Setter Property="Background" Value="#161b22"/>
+            <Setter Property="Padding" Value="12,8"/>
+        </Style>
+        <Style Selector="ComboBoxItem:pointerover">
+            <Setter Property="Background" Value="#30363d"/>
+            <Setter Property="Foreground" Value="#e6edf3"/>
+        </Style>
+        <Style Selector="ComboBoxItem:selected">
+            <Setter Property="Background" Value="#1f6feb"/>
+            <Setter Property="Foreground" Value="#ffffff"/>
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="Background" Value="#21262d"/>
+            <Setter Property="BorderBrush" Value="#30363d"/>
+            <Setter Property="Foreground" Value="#e6edf3"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+        </Style>
+        <Style Selector="Button:pointerover">
+            <Setter Property="Background" Value="#30363d"/>
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#238636"/>
+            <Setter Property="BorderBrush" Value="#238636"/>
+        </Style>
+        <Style Selector="Button.primary:pointerover">
+            <Setter Property="Background" Value="#2ea043"/>
+        </Style>
+        <Style Selector="Button.accent">
+            <Setter Property="Background" Value="#1f6feb"/>
+            <Setter Property="BorderBrush" Value="#1f6feb"/>
+        </Style>
+        <Style Selector="Button.accent:pointerover">
+            <Setter Property="Background" Value="#388bfd"/>
+        </Style>
+        <Style Selector="Button.danger">
+            <Setter Property="Background" Value="#da3633"/>
+            <Setter Property="BorderBrush" Value="#da3633"/>
+        </Style>
+        <Style Selector="Button.danger:pointerover">
+            <Setter Property="Background" Value="#f85149"/>
+        </Style>
+        <Style Selector="Button.nav">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,12"/>
+        </Style>
+        <Style Selector="Button.nav:pointerover">
+            <Setter Property="Background" Value="#21262d"/>
+        </Style>
+        <Style Selector="Button.navActive">
+            <Setter Property="Background" Value="#1f6feb"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,12"/>
+        </Style>
+        <Style Selector="ListBox">
+            <Setter Property="Background" Value="#161b22"/>
+            <Setter Property="BorderBrush" Value="#30363d"/>
+            <Setter Property="CornerRadius" Value="8"/>
+        </Style>
+        <Style Selector="ListBoxItem">
+            <Setter Property="Foreground" Value="#e6edf3"/>
+            <Setter Property="Padding" Value="12,8"/>
+        </Style>
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="#1f6feb"/>
+        </Style>
+        <Style Selector="NumericUpDown">
+            <Setter Property="Background" Value="#161b22"/>
+            <Setter Property="BorderBrush" Value="#30363d"/>
+            <Setter Property="Foreground" Value="#e6edf3"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
+        <Style Selector="DataGrid">
+            <Setter Property="Background" Value="#161b22"/>
+            <Setter Property="BorderBrush" Value="#30363d"/>
+            <Setter Property="RowBackground" Value="#161b22"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#21262d"/>
+        </Style>
+        <Style Selector="DataGridColumnHeader">
+            <Setter Property="Background" Value="#21262d"/>
+            <Setter Property="Foreground" Value="#8b949e"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="DataGridCell">
+            <Setter Property="Foreground" Value="#e6edf3"/>
+        </Style>
+        <Style Selector="ScrollBar">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="ScrollBar /template/ Thumb">
+            <Setter Property="Background" Value="#30363d"/>
+        </Style>
+    </Window.Styles>
+    
+    <Design.DataContext>
+        <vm:MainViewModel/>
+    </Design.DataContext>
+
+    <Grid RowDefinitions="Auto,*,Auto">
+        <!-- Top Navigation Bar -->
+        <Border Grid.Row="0" Background="#161b22" BorderBrush="#30363d" BorderThickness="0,0,0,1" Padding="24,16">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <!-- Logo -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
+                    <Border Background="#1f6feb" CornerRadius="8" Width="40" Height="40">
+                        <TextBlock Text="⚡" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="SQL Studio" FontSize="20" FontWeight="Bold"/>
+                        <TextBlock Text="AI-Powered Query Builder" FontSize="11" Foreground="#8b949e"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Step Navigation -->
+                <Border Grid.Column="1" HorizontalAlignment="Center" Background="#21262d" CornerRadius="8" Padding="4">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <!-- Step 1 -->
+                        <Button Command="{Binding GoToStepCommand}" CommandParameter="{x:Static vm:WorkflowStep.DatabaseConnection}"
+                                Classes.nav="{Binding !IsStep1}" Classes.navActive="{Binding IsStep1}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Border Width="24" Height="24" CornerRadius="12" 
+                                        Background="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#238636;#30363d'}">
+                                    <TextBlock Text="1" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="Database" VerticalAlignment="Center" FontSize="13"/>
+                            </StackPanel>
+                        </Button>
+                        <TextBlock Text="→" Foreground="#484f58" VerticalAlignment="Center" Margin="8,0"/>
+                        <!-- Step 2 -->
+                        <Button Command="{Binding GoToStepCommand}" CommandParameter="{x:Static vm:WorkflowStep.AiConfiguration}"
+                                Classes.nav="{Binding !IsStep2}" Classes.navActive="{Binding IsStep2}"
+                                IsEnabled="{Binding CanGoToStep2}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Border Width="24" Height="24" CornerRadius="12"
+                                        Background="{Binding SelectedAiModel, Converter={x:Static conv:AiModelStepColorConverter.Instance}}">
+                                    <TextBlock Text="2" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="AI Setup" VerticalAlignment="Center" FontSize="13"/>
+                            </StackPanel>
+                        </Button>
+                        <TextBlock Text="→" Foreground="#484f58" VerticalAlignment="Center" Margin="8,0"/>
+                        <!-- Step 3 -->
+                        <Button Command="{Binding GoToStepCommand}" CommandParameter="{x:Static vm:WorkflowStep.SqlWorkspace}"
+                                Classes.nav="{Binding !IsStep3}" Classes.navActive="{Binding IsStep3}"
+                                IsEnabled="{Binding CanGoToStep3}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Border Width="24" Height="24" CornerRadius="12" Background="#30363d">
+                                    <TextBlock Text="3" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="SQL Workspace" VerticalAlignment="Center" FontSize="13"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- Status -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
+                    <Border Width="8" Height="8" CornerRadius="4"
+                            Background="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#3fb950;#f85149'}"/>
+                    <TextBlock Text="{Binding IsConnected, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Connected;Disconnected'}" 
+                               FontSize="12" Foreground="#8b949e" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main Content - Step Panels -->
+        <Grid Grid.Row="1">
+            <!-- Step 1: Database Connection -->
+            <Border IsVisible="{Binding IsStep1}" Padding="24,20">
+                <Grid RowDefinitions="Auto,*">
+                    <!-- Compact Header -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12" Margin="0,0,0,20">
+                        <Border Background="#1f6feb" CornerRadius="8" Width="40" Height="40">
+                            <TextBlock Text="🗄️" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Connect to Database" FontSize="18" FontWeight="Bold"/>
+                            <TextBlock Text="Configure your database connection to get started" FontSize="12" Foreground="#8b949e"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Horizontal Card Layout -->
+                    <Grid Grid.Row="1" ColumnDefinitions="*,20,*">
+                        <!-- Connection Settings Card -->
+                        <Border Grid.Column="0" Background="#161b22" CornerRadius="12" Padding="24">
+                            <StackPanel Spacing="16">
+                                <TextBlock Text="Connection Settings" FontWeight="SemiBold" FontSize="14"/>
+                                
+                                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
+                                    <!-- Row 1: Type & Host -->
+                                    <StackPanel Grid.Row="0" Grid.Column="0" Spacing="4" Margin="0,0,8,12">
+                                        <TextBlock Text="Type" FontSize="12" Foreground="#8b949e"/>
+                                        <ComboBox ItemsSource="{Binding DatabaseTypes}" 
+                                                  SelectedItem="{Binding SelectedDatabaseType}" 
+                                                  HorizontalAlignment="Stretch"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="1" Spacing="4" Margin="8,0,0,12">
+                                        <TextBlock Text="Host" FontSize="12" Foreground="#8b949e"/>
+                                        <TextBox Watermark="localhost" Text="{Binding Host}"/>
+                                    </StackPanel>
+                                    
+                                    <!-- Row 2: Port & Username -->
+                                    <StackPanel Grid.Row="1" Grid.Column="0" Spacing="4" Margin="0,0,8,12">
+                                        <TextBlock Text="Port" FontSize="12" Foreground="#8b949e"/>
+                                        <TextBox Watermark="3306" Text="{Binding Port}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4" Margin="8,0,0,12">
+                                        <TextBlock Text="Username" FontSize="12" Foreground="#8b949e"/>
+                                        <TextBox Watermark="root" Text="{Binding Username}"/>
+                                    </StackPanel>
+                                    
+                                    <!-- Row 3: Password & Connect Button -->
+                                    <StackPanel Grid.Row="2" Grid.Column="0" Spacing="4" Margin="0,0,8,0">
+                                        <TextBlock Text="Password" FontSize="12" Foreground="#8b949e"/>
+                                        <TextBox Watermark="••••••" Text="{Binding Password}" PasswordChar="●"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="2" Grid.Column="1" Spacing="4" Margin="8,0,0,0">
+                                        <TextBlock Text=" " FontSize="12"/>
+                                        <Button Content="Connect" Command="{Binding ConnectCommand}" 
+                                                Classes="primary" HorizontalAlignment="Stretch" Padding="16,11"
+                                                IsVisible="{Binding !IsConnected}" IsEnabled="{Binding !IsExecuting}"/>
+                                        <Button Content="Disconnect" Command="{Binding DisconnectCommand}" 
+                                                Classes="danger" HorizontalAlignment="Stretch" Padding="16,11"
+                                                IsVisible="{Binding IsConnected}" IsEnabled="{Binding !IsExecuting}"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Database Selection & Next Card -->
+                        <Border Grid.Column="2" Background="#161b22" CornerRadius="12" Padding="24">
+                            <Grid RowDefinitions="Auto,*,Auto">
+                                <TextBlock Grid.Row="0" Text="Select Database" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,16"/>
+                                
+                                <!-- Status & Database List -->
+                                <StackPanel Grid.Row="1" Spacing="12">
+                                    <!-- Connection Status -->
+                                    <Border Background="#21262d" CornerRadius="8" Padding="12">
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <Border Width="10" Height="10" CornerRadius="5"
+                                                    Background="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#3fb950;#f85149'}"/>
+                                            <TextBlock Text="{Binding IsConnected, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Connected - Select a database;Not connected - Connect first'}" 
+                                                       FontSize="13" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                    
+                                    <!-- Database Selection -->
+                                    <StackPanel Spacing="4" IsEnabled="{Binding IsConnected}">
+                                        <TextBlock Text="Database" FontSize="12" Foreground="#8b949e"/>
+                                        <ComboBox ItemsSource="{Binding Databases}" 
+                                                  SelectedItem="{Binding SelectedDatabase}" 
+                                                  HorizontalAlignment="Stretch"/>
+                                    </StackPanel>
+
+                                    <!-- Tables Preview -->
+                                    <StackPanel Spacing="4" IsEnabled="{Binding IsConnected}">
+                                        <TextBlock Text="Tables" FontSize="12" Foreground="#8b949e"/>
+                                        <ListBox ItemsSource="{Binding Tables}" 
+                                                 SelectedItem="{Binding SelectedTable}"
+                                                 MaxHeight="200" CornerRadius="6"/>
+                                    </StackPanel>
+                                </StackPanel>
+                                
+                                <!-- Next Button -->
+                                <Button Grid.Row="2" Content="Next: Configure AI →" Command="{Binding NextStepCommand}" 
+                                        Classes="accent" HorizontalAlignment="Stretch" Padding="16,12" Margin="0,16,0,0"
+                                        IsEnabled="{Binding SelectedDatabase, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- Step 2: AI Configuration -->
+            <Border IsVisible="{Binding IsStep2}" Padding="24,20">
+                <Grid RowDefinitions="Auto,*">
+                    <!-- Compact Header -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12" Margin="0,0,0,20">
+                        <Border Background="#238636" CornerRadius="8" Width="40" Height="40">
+                            <TextBlock Text="🤖" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Configure AI Model" FontSize="18" FontWeight="Bold"/>
+                            <TextBlock Text="Set up your OpenAI compatible endpoint" FontSize="12" Foreground="#8b949e"/>
+                        </StackPanel>
+                        <Button Content="← Back" Command="{Binding PreviousStepCommand}" Padding="12,8" Margin="40,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Horizontal Card Layout -->
+                    <Grid Grid.Row="1" ColumnDefinitions="*,20,*">
+                        <!-- API Settings Card -->
+                        <Border Grid.Column="0" Background="#161b22" CornerRadius="12" Padding="24">
+                            <StackPanel Spacing="16">
+                                <TextBlock Text="API Settings" FontWeight="SemiBold" FontSize="14"/>
+                                
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="API Base URL" FontSize="12" Foreground="#8b949e"/>
+                                    <TextBox Watermark="https://api.openai.com/v1" Text="{Binding AiEndpoint}"/>
+                                </StackPanel>
+
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="API Key" FontSize="12" Foreground="#8b949e"/>
+                                    <TextBox Watermark="sk-..." Text="{Binding AiApiKey}" PasswordChar="●"/>
+                                </StackPanel>
+
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,12,0">
+                                        <TextBlock Text="Model" FontSize="12" Foreground="#8b949e"/>
+                                        <ComboBox ItemsSource="{Binding AiModels}" 
+                                                  SelectedItem="{Binding SelectedAiModel}" 
+                                                  HorizontalAlignment="Stretch"
+                                                  IsEnabled="{Binding AiModels.Count}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="4">
+                                        <TextBlock Text=" " FontSize="12"/>
+                                        <Button Content="Load" Command="{Binding FetchModelsCommand}" 
+                                                IsEnabled="{Binding !IsLoadingModels}" Padding="16,11"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Max Retries" FontSize="12" Foreground="#8b949e"/>
+                                    <NumericUpDown Value="{Binding MaxRetries}" Minimum="1" Maximum="10" 
+                                                   FormatString="0" ShowButtonSpinner="True" Width="120" HorizontalAlignment="Left"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Connection Summary Card -->
+                        <Border Grid.Column="2" Background="#161b22" CornerRadius="12" Padding="24">
+                            <Grid RowDefinitions="Auto,*,Auto">
+                                <TextBlock Grid.Row="0" Text="Connection Summary" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,16"/>
+                                
+                                <!-- Status Info -->
+                                <StackPanel Grid.Row="1" Spacing="12">
+                                    <!-- Database Info -->
+                                    <Border Background="#21262d" CornerRadius="8" Padding="16">
+                                        <StackPanel Spacing="12">
+                                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                                <Border Width="10" Height="10" CornerRadius="5" Background="#3fb950"/>
+                                                <TextBlock Text="Database Connected" FontSize="13" Foreground="#3fb950"/>
+                                            </StackPanel>
+                                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto">
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Type:" FontSize="12" Foreground="#8b949e" Margin="0,0,12,4"/>
+                                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedDatabaseType}" FontSize="12"/>
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Host:" FontSize="12" Foreground="#8b949e" Margin="0,0,12,4"/>
+                                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Host}" FontSize="12"/>
+                                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Database:" FontSize="12" Foreground="#8b949e" Margin="0,0,12,0"/>
+                                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedDatabase}" FontSize="12"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- AI Model Info -->
+                                    <Border Background="#21262d" CornerRadius="8" Padding="16">
+                                        <StackPanel Spacing="12">
+                                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                                <Border Width="10" Height="10" CornerRadius="5"
+                                                        Background="{Binding SelectedAiModel, Converter={x:Static conv:AiModelStatusColorConverter.Instance}}"/>
+                                                <TextBlock Text="{Binding SelectedAiModel, TargetNullValue='No model selected', FallbackValue='No model selected'}" 
+                                                           FontSize="13"/>
+                                            </StackPanel>
+                                            <TextBlock Text="Click 'Load' to fetch available models from your API endpoint" 
+                                                       FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Tables Count -->
+                                    <Border Background="#21262d" CornerRadius="8" Padding="16">
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="📋" FontSize="14"/>
+                                            <TextBlock FontSize="13">
+                                                <TextBlock.Text>
+                                                    <MultiBinding StringFormat="{}{0} tables available">
+                                                        <Binding Path="Tables.Count"/>
+                                                    </MultiBinding>
+                                                </TextBlock.Text>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- Start Working Button -->
+                                <Button Grid.Row="2" Content="✓ Start Working" Command="{Binding NextStepCommand}" 
+                                        Classes="primary" HorizontalAlignment="Stretch" Padding="16,14" Margin="0,16,0,0"
+                                        IsEnabled="{Binding SelectedAiModel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- Step 3: SQL Workspace -->
+            <Grid IsVisible="{Binding IsStep3}" ColumnDefinitions="260,*">
+                <!-- Left Sidebar - Tables -->
+                <Border Grid.Column="0" Background="#161b22" BorderBrush="#30363d" BorderThickness="0,0,1,0">
+                    <Grid RowDefinitions="Auto,*">
+                        <Border Grid.Row="0" Padding="16" Background="#21262d">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="📋" FontSize="16"/>
+                                <TextBlock Text="Tables" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding SelectedDatabase}" FontSize="12" Foreground="#8b949e" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <ListBox Grid.Row="1" ItemsSource="{Binding Tables}" 
+                                 SelectedItem="{Binding SelectedTable}"
+                                 Margin="12" CornerRadius="8"/>
+                    </Grid>
+                </Border>
+
+                <!-- Main Content Area -->
+                <Grid Grid.Column="1" ColumnDefinitions="*,6,*" Margin="20">
+                    <!-- Left: Chat & SQL Editor -->
+                    <Grid Grid.Column="0" RowDefinitions="*,Auto">
+                        <!-- Chat Area -->
+                        <Border Grid.Row="0" Background="#161b22" CornerRadius="12" ClipToBounds="True">
+                            <Grid RowDefinitions="Auto,*,Auto">
+                                <!-- Chat Header -->
+                                <Border Grid.Row="0" Background="#21262d" Padding="16,12">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="💬" FontSize="16"/>
+                                            <TextBlock Text="AI Chat" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="History:" VerticalAlignment="Center" FontSize="12" Foreground="#8b949e"/>
+                                            <ComboBox ItemsSource="{Binding HistoryModes}" 
+                                                      SelectedItem="{Binding SelectedHistoryMode}" 
+                                                      Width="90" Padding="8,6">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Converter={x:Static conv:HistoryModeConverter.Instance}}" FontSize="12"/>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <Button Content="Clear" Command="{Binding ClearChatCommand}" Padding="10,6" FontSize="12"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                
+                                <!-- Chat Messages -->
+                                <ScrollViewer Grid.Row="1" x:Name="ChatScrollViewer" VerticalScrollBarVisibility="Auto" Margin="16">
+                                    <ItemsControl ItemsSource="{Binding ChatMessages}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:ChatMessage">
+                                                <Border Margin="0,6"  CornerRadius="12"
+                                                        HorizontalAlignment="{Binding IsUser, Converter={x:Static conv:BoolToAlignmentConverter.Instance}}"
+                                                        MaxWidth="450">
+                                                    <Border.Background>
+                                                        <MultiBinding Converter="{x:Static conv:ChatBubbleColorConverter.Instance}">
+                                                            <Binding Path="IsUser"/>
+                                                            <Binding Path="IsError"/>
+                                                        </MultiBinding>
+                                                    </Border.Background>
+                                                    <StackPanel Margin="14,12">
+                                                        <TextBlock Text="{Binding Content}" TextWrapping="Wrap" FontSize="13" LineHeight="20"
+                                                                   Foreground="{Binding IsUser, Converter={x:Static conv:BoolToForegroundConverter.Instance}}"/>
+                                                        <Border Background="#0d1117" CornerRadius="8" Padding="12" Margin="0,10,0,0"
+                                                                BorderBrush="#30363d" BorderThickness="1">
+                                                            <Border.IsVisible>
+                                                                <MultiBinding Converter="{x:Static conv:SqlVisibilityConverter.Instance}">
+                                                                    <Binding Path="Sql"/>
+                                                                    <Binding Path="IsStreaming"/>
+                                                                </MultiBinding>
+                                                            </Border.IsVisible>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding Sql}" FontFamily="Cascadia Code, Consolas, monospace" 
+                                                                           Foreground="#79c0ff" TextWrapping="Wrap" FontSize="12"/>
+                                                                <Button Content="📋 Use SQL" HorizontalAlignment="Right" Margin="0,10,0,0"
+                                                                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).UseSqlCommand}"
+                                                                        CommandParameter="{Binding Sql}"
+                                                                        Padding="10,6" FontSize="11" Classes="accent"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                        <StackPanel Orientation="Horizontal" IsVisible="{Binding IsStreaming}" Margin="0,8,0,0">
+                                                            <Border Width="8" Height="8" CornerRadius="4" Background="#58a6ff" Margin="0,0,8,0">
+                                                                <Border.Styles>
+                                                                    <Style Selector="Border">
+                                                                        <Style.Animations>
+                                                                            <Animation Duration="0:0:1" IterationCount="Infinite">
+                                                                                <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1"/></KeyFrame>
+                                                                                <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.3"/></KeyFrame>
+                                                                                <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1"/></KeyFrame>
+                                                                            </Animation>
+                                                                        </Style.Animations>
+                                                                    </Style>
+                                                                </Border.Styles>
+                                                            </Border>
+                                                            <TextBlock Text="Generating..." Foreground="#8b949e" FontSize="12"/>
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+
+                                <!-- Chat Input -->
+                                <Border Grid.Row="2" Padding="16" Background="#21262d">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBox Grid.Column="0" Text="{Binding ChatInput}" x:Name="ChatInputBox"
+                                                 Watermark="Ask about your data..."
+                                                 AcceptsReturn="False" Padding="14,12"
+                                                 KeyDown="OnChatInputKeyDown"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="10,0,0,0">
+                                            <Button Content="▶ Send" Command="{Binding SendChatMessageCommand}"
+                                                    IsVisible="{Binding !IsExecuting}" Classes="accent" Padding="16,12"/>
+                                            <Button Content="⬛ Stop" Command="{Binding StopGenerationCommand}"
+                                                    IsVisible="{Binding IsExecuting}" Classes="danger" Padding="16,12"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <!-- SQL Editor -->
+                        <Border Grid.Row="1" Background="#161b22" CornerRadius="12" Margin="0,16,0,0" ClipToBounds="True">
+                            <Grid RowDefinitions="Auto,*">
+                                <Border Grid.Row="0" Background="#21262d" Padding="16,12">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="📝" FontSize="16"/>
+                                            <TextBlock Text="Generated SQL" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Content="▶ Execute" 
+                                                Command="{Binding ExecuteSqlDirectlyCommand}"
+                                                IsEnabled="{Binding !IsExecuting}"
+                                                Classes="primary" Padding="14,8"/>
+                                    </Grid>
+                                </Border>
+                                <TextBox Grid.Row="1" Text="{Binding GeneratedSql}" 
+                                         AcceptsReturn="True" TextWrapping="Wrap" MinHeight="100"
+                                         FontFamily="Cascadia Code, Consolas, monospace" FontSize="13"
+                                         Background="#0d1117" Foreground="#79c0ff" Padding="16"
+                                         BorderThickness="0" CornerRadius="0"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <GridSplitter Grid.Column="1" Background="Transparent" ResizeDirection="Columns" Width="6"/>
+
+                    <!-- Right: Results & Logs -->
+                    <Grid Grid.Column="2" RowDefinitions="*,6,*">
+                        <!-- Query Results -->
+                        <Border Grid.Row="0" Background="#161b22" CornerRadius="12" ClipToBounds="True">
+                            <Grid RowDefinitions="Auto,*">
+                                <Border Grid.Row="0" Background="#21262d" Padding="16,12">
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <TextBlock Text="📊" FontSize="16"/>
+                                        <TextBlock Text="Query Results" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                                <DataGrid x:Name="QueryResultsGrid" Grid.Row="1"
+                                          ItemsSource="{Binding QueryResultRows}" 
+                                          AutoGenerateColumns="False" IsReadOnly="True"
+                                          RowHeight="36" CornerRadius="0"/>
+                            </Grid>
+                        </Border>
+
+                        <GridSplitter Grid.Row="1" Background="Transparent" ResizeDirection="Rows" Height="6"/>
+
+                        <!-- Execution Log -->
+                        <Border Grid.Row="2" Background="#161b22" CornerRadius="12" ClipToBounds="True">
+                            <Grid RowDefinitions="Auto,*">
+                                <Border Grid.Row="0" Background="#21262d" Padding="16,12">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="📜" FontSize="16"/>
+                                            <TextBlock Text="Execution Log" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Content="Clear" Command="{Binding ClearLogCommand}" 
+                                                Padding="10,6" FontSize="12"/>
+                                    </Grid>
+                                </Border>
+                                <TextBox Grid.Row="1" Text="{Binding ExecutionLog}" 
+                                         IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+                                         FontFamily="Cascadia Code, Consolas, monospace" FontSize="12"
+                                         Background="#0d1117" Foreground="#8b949e" Padding="16"
+                                         BorderThickness="0" CornerRadius="0"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="#161b22" BorderBrush="#30363d" BorderThickness="0,1,0,0" Padding="20,10">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" Foreground="#8b949e" FontSize="12" VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" IsVisible="{Binding IsExecuting}">
+                    <ProgressBar IsIndeterminate="True" Width="120" Height="4" 
+                                 Foreground="#1f6feb" Background="#30363d"/>
+                    <TextBlock Text="Processing..." Foreground="#58a6ff" FontSize="12"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
