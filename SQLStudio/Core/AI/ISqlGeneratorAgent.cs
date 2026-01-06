@@ -8,6 +8,11 @@ namespace SQLStudio.Core.AI;
 
 public interface ISqlGeneratorAgent
 {
+    Task<TableAnalysisResult> AnalyzeRequiredTablesAsync(
+        TableAnalysisRequest request,
+        Action<string> onTokenReceived,
+        CancellationToken cancellationToken = default);
+
     Task<SqlGenerationResult> GenerateSqlAsync(
         SqlGenerationRequest request, 
         CancellationToken cancellationToken = default);
@@ -31,6 +36,7 @@ public interface ISqlGeneratorAgent
         CancellationToken cancellationToken = default);
 
     (string SystemPrompt, string UserPrompt) GetPrompts(SqlGenerationRequest request);
+    string GetTableAnalysisPrompt(TableAnalysisRequest request);
 }
 
 public record SqlGenerationRequest
@@ -55,4 +61,19 @@ public record SqlGenerationHistory
 {
     public required string Role { get; init; }
     public required string Content { get; init; }
+}
+
+public record TableAnalysisRequest
+{
+    public required string UserQuery { get; init; }
+    public required DatabaseSchema FullSchema { get; init; }
+    public required string DatabaseType { get; init; }
+}
+
+public record TableAnalysisResult
+{
+    public bool Success { get; init; }
+    public List<string> RequiredTables { get; init; } = new();
+    public string? Reasoning { get; init; }
+    public string? ErrorMessage { get; init; }
 }

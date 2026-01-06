@@ -476,15 +476,20 @@
                 <Border Grid.Column="0" Background="#161b22" BorderBrush="#30363d" BorderThickness="0,0,1,0">
                     <Grid RowDefinitions="Auto,*">
                         <Border Grid.Row="0" Padding="16" Background="#21262d">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <TextBlock Text="📋" FontSize="16"/>
-                                <TextBlock Text="Tables" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center"/>
-                                <TextBlock Text="{Binding SelectedDatabase}" FontSize="12" Foreground="#8b949e" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <TextBlock Text="📋" FontSize="16"/>
+                                    <TextBlock Text="Tables" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding SelectedDatabase}" FontSize="12" Foreground="#8b949e" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                </StackPanel>
+                                <TextBlock Text="双击可查看表结构" FontSize="11" Foreground="#6e7681" Margin="26,2,0,0"/>
                             </StackPanel>
                         </Border>
                         <ListBox Grid.Row="1" ItemsSource="{Binding Tables}" 
                                  SelectedItem="{Binding SelectedTable}"
-                                 Margin="12" CornerRadius="8"/>
+                                 Margin="12" CornerRadius="8"
+                                 x:Name="TablesListBox"
+                                 DoubleTapped="OnTablesListBoxDoubleTapped"/>
                     </Grid>
                 </Border>
 
@@ -523,9 +528,9 @@
                                     <ItemsControl ItemsSource="{Binding ChatMessages}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="vm:ChatMessage">
-                                                <Border Margin="0,6"  CornerRadius="12"
+                                                <Border Margin="0,6" CornerRadius="12"
                                                         HorizontalAlignment="{Binding IsUser, Converter={x:Static conv:BoolToAlignmentConverter.Instance}}"
-                                                        MaxWidth="450">
+                                                        MaxWidth="500">
                                                     <Border.Background>
                                                         <MultiBinding Converter="{x:Static conv:ChatBubbleColorConverter.Instance}">
                                                             <Binding Path="IsUser"/>
@@ -533,8 +538,49 @@
                                                         </MultiBinding>
                                                     </Border.Background>
                                                     <StackPanel Margin="14,12">
+                                                        <!-- 执行步骤指示器 (仅AI消息显示) -->
+                                                        <Border IsVisible="{Binding !IsUser}" Background="#21262d" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                                                            <StackPanel Spacing="8">
+                                                                <TextBlock Text="执行步骤" FontSize="11" Foreground="#8b949e" FontWeight="SemiBold"/>
+                                                                <ItemsControl ItemsSource="{Binding Steps}">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate x:DataType="vm:ExecutionStepInfo">
+                                                                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
+                                                                                <Border Width="16" Height="16" CornerRadius="8"
+                                                                                        Background="{Binding Status, Converter={x:Static conv:StepStatusColorConverter.Instance}}">
+                                                                                    <TextBlock Text="{Binding Status, Converter={x:Static conv:StepStatusIconConverter.Instance}}" 
+                                                                                               FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                                </Border>
+                                                                                <TextBlock Text="{Binding StepName}" FontSize="12" VerticalAlignment="Center"
+                                                                                           Foreground="{Binding Status, Converter={x:Static conv:StepStatusTextColorConverter.Instance}}"/>
+                                                                                <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="#8b949e" VerticalAlignment="Center"/>
+                                                                            </StackPanel>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                                <!-- 已选择的表 -->
+                                                                <Border IsVisible="{Binding SelectedTableCount}" Background="#0d1117" CornerRadius="6" Padding="8" Margin="0,4,0,0">
+                                                                    <StackPanel Spacing="4">
+                                                                        <TextBlock FontSize="11" Foreground="#3fb950">
+                                                                            <Run Text="📋 已选择 "/>
+                                                                            <Run Text="{Binding SelectedTableCount}"/>
+                                                                            <Run Text="/"/>
+                                                                            <Run Text="{Binding TotalTableCount}"/>
+                                                                            <Run Text=" 个表"/>
+                                                                        </TextBlock>
+                                                                        <TextBlock Text="{Binding AnalyzedTables, Converter={x:Static conv:ListToStringConverter.Instance}}" 
+                                                                                   FontSize="11" Foreground="#58a6ff" TextWrapping="Wrap"/>
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </StackPanel>
+                                                        </Border>
+                                                        
+                                                        <!-- 消息内容 -->
                                                         <TextBlock Text="{Binding Content}" TextWrapping="Wrap" FontSize="13" LineHeight="20"
-                                                                   Foreground="{Binding IsUser, Converter={x:Static conv:BoolToForegroundConverter.Instance}}"/>
+                                                                   Foreground="{Binding IsUser, Converter={x:Static conv:BoolToForegroundConverter.Instance}}"
+                                                                   IsVisible="{Binding Content, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                                        
+                                                        <!-- SQL代码块 -->
                                                         <Border Background="#0d1117" CornerRadius="8" Padding="12" Margin="0,10,0,0"
                                                                 BorderBrush="#30363d" BorderThickness="1">
                                                             <Border.IsVisible>
@@ -552,6 +598,8 @@
                                                                         Padding="10,6" FontSize="11" Classes="accent"/>
                                                             </StackPanel>
                                                         </Border>
+                                                        
+                                                        <!-- 流式输出指示器 -->
                                                         <StackPanel Orientation="Horizontal" IsVisible="{Binding IsStreaming}" Margin="0,8,0,0">
                                                             <Border Width="8" Height="8" CornerRadius="4" Background="#58a6ff" Margin="0,0,8,0">
                                                                 <Border.Styles>
@@ -566,7 +614,7 @@
                                                                     </Style>
                                                                 </Border.Styles>
                                                             </Border>
-                                                            <TextBlock Text="Generating..." Foreground="#8b949e" FontSize="12"/>
+                                                            <TextBlock Text="{Binding CurrentStep, FallbackValue='处理中...'}" Foreground="#8b949e" FontSize="12"/>
                                                         </StackPanel>
                                                     </StackPanel>
                                                 </Border>
@@ -577,17 +625,49 @@
 
                                 <!-- Chat Input -->
                                 <Border Grid.Row="2" Padding="16" Background="#21262d">
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <TextBox Grid.Column="0" Text="{Binding ChatInput}" x:Name="ChatInputBox"
-                                                 Watermark="Ask about your data..."
-                                                 AcceptsReturn="False" Padding="14,12"
-                                                 KeyDown="OnChatInputKeyDown"/>
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="10,0,0,0">
-                                            <Button Content="▶ Send" Command="{Binding SendChatMessageCommand}"
-                                                    IsVisible="{Binding !IsExecuting}" Classes="accent" Padding="16,12"/>
-                                            <Button Content="⬛ Stop" Command="{Binding StopGenerationCommand}"
-                                                    IsVisible="{Binding IsExecuting}" Classes="danger" Padding="16,12"/>
-                                        </StackPanel>
+                                    <Grid RowDefinitions="Auto,Auto">
+                                        <!-- 表选择弹出框 -->
+                                        <Border Grid.Row="0" IsVisible="{Binding IsTableSuggestionVisible}"
+                                                Background="#161b22" BorderBrush="#30363d" BorderThickness="1"
+                                                CornerRadius="8" Margin="0,0,0,8" MaxHeight="200">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <ItemsControl ItemsSource="{Binding FilteredTables}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button Content="{Binding}" 
+                                                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectSuggestionTableCommand}"
+                                                                    CommandParameter="{Binding}"
+                                                                    HorizontalAlignment="Stretch"
+                                                                    HorizontalContentAlignment="Left"
+                                                                    Background="Transparent"
+                                                                    Padding="12,8" Margin="2"
+                                                                    CornerRadius="4">
+                                                                <Button.Styles>
+                                                                    <Style Selector="Button:pointerover">
+                                                                        <Setter Property="Background" Value="#30363d"/>
+                                                                    </Style>
+                                                                </Button.Styles>
+                                                            </Button>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Border>
+                                        
+                                        <!-- 输入框和按钮 -->
+                                        <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+                                            <TextBox Grid.Column="0" Text="{Binding ChatInput}" x:Name="ChatInputBox"
+                                                     Watermark="Ask about your data... (输入@选择表)"
+                                                     AcceptsReturn="False" Padding="14,12"
+                                                     KeyDown="OnChatInputKeyDown"
+                                                     TextChanged="OnChatInputTextChanged"/>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="10,0,0,0">
+                                                <Button Content="▶ Send" Command="{Binding SendChatMessageCommand}"
+                                                        IsVisible="{Binding !IsExecuting}" Classes="accent" Padding="16,12"/>
+                                                <Button Content="⬛ Stop" Command="{Binding StopGenerationCommand}"
+                                                        IsVisible="{Binding IsExecuting}" Classes="danger" Padding="16,12"/>
+                                            </StackPanel>
+                                        </Grid>
                                     </Grid>
                                 </Border>
                             </Grid>
@@ -611,7 +691,7 @@
                                 <TextBox Grid.Row="1" Text="{Binding GeneratedSql}" 
                                          AcceptsReturn="True" TextWrapping="Wrap" MinHeight="100"
                                          FontFamily="Cascadia Code, Consolas, monospace" FontSize="13"
-                                         Background="#0d1117" Foreground="#79c0ff" Padding="16"
+                                         Background="#161b22" Foreground="#79c0ff" Padding="16"
                                          BorderThickness="0" CornerRadius="0"/>
                             </Grid>
                         </Border>
@@ -655,7 +735,7 @@
                                 <TextBox Grid.Row="1" Text="{Binding ExecutionLog}" 
                                          IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
                                          FontFamily="Cascadia Code, Consolas, monospace" FontSize="12"
-                                         Background="#0d1117" Foreground="#8b949e" Padding="16"
+                                         Background="#161b22" Foreground="#8b949e" Padding="16"
                                          BorderThickness="0" CornerRadius="0"/>
                             </Grid>
                         </Border>
@@ -663,6 +743,52 @@
                 </Grid>
             </Grid>
         </Grid>
+
+        <!-- Table Structure Dialog Overlay -->
+        <Border Grid.Row="1" IsVisible="{Binding IsTableStructureVisible}"
+                Background="#80000000" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <Border Background="#161b22" CornerRadius="12" Padding="0"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    MinWidth="500" MaxWidth="800" MaxHeight="600"
+                    BorderBrush="#30363d" BorderThickness="1">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <!-- Header -->
+                    <Border Grid.Row="0" Background="#21262d" CornerRadius="12,12,0,0" Padding="20,16">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="🔍" FontSize="18"/>
+                                <TextBlock Text="{Binding TableStructureTitle}" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <Button Grid.Column="2" Content="✕" Command="{Binding CloseTableStructureCommand}"
+                                    Background="Transparent" BorderThickness="0" Padding="8,4" FontSize="16"/>
+                        </Grid>
+                    </Border>
+                    
+                    <!-- Table Structure Content -->
+                    <Border Grid.Row="1" Padding="16">
+                        <DataGrid ItemsSource="{Binding TableStructureColumns}" 
+                                  AutoGenerateColumns="False" IsReadOnly="True"
+                                  RowHeight="36" CornerRadius="8"
+                                  Background="#0d1117" BorderBrush="#30363d" BorderThickness="1">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="列名" Binding="{Binding ColumnName}" Width="150"/>
+                                <DataGridTextColumn Header="类型" Binding="{Binding DataType}" Width="120"/>
+                                <DataGridCheckBoxColumn Header="可空" Binding="{Binding IsNullable}" Width="80"/>
+                                <DataGridCheckBoxColumn Header="主键" Binding="{Binding IsPrimaryKey}" Width="80"/>
+                                <DataGridTextColumn Header="默认值" Binding="{Binding DefaultValue}" Width="100"/>
+                                <DataGridTextColumn Header="备注" Binding="{Binding Comment}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                    
+                    <!-- Footer -->
+                    <Border Grid.Row="2" Background="#21262d" CornerRadius="0,0,12,12" Padding="16,12">
+                        <Button Content="关闭" Command="{Binding CloseTableStructureCommand}"
+                                HorizontalAlignment="Right" Classes="accent" Padding="20,10"/>
+                    </Border>
+                </Grid>
+            </Border>
+        </Border>
 
         <!-- Status Bar -->
         <Border Grid.Row="2" Background="#161b22" BorderBrush="#30363d" BorderThickness="0,1,0,0" Padding="20,10">

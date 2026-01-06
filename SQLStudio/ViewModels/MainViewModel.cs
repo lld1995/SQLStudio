@@ -2,13 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Data;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SQLStudio.Core.AI;
 using SQLStudio.Core.Database;
 using SQLStudio.Core.Services;
+using ColumnInfo = SQLStudio.Core.Database.ColumnInfo;
 
 namespace SQLStudio.ViewModels;
 
@@ -29,6 +32,7 @@ public partial class MainViewModel : ObservableObject
 {
     private readonly ConnectionManager _connectionManager;
     private readonly SqlAgentService _sqlAgentService;
+    private readonly AppSettingsService _settingsService;
     private CancellationTokenSource? _chatCancellationTokenSource;
     
     private const string DefaultConnectionId = "default";
@@ -153,16 +157,86 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string? _selectedTable;
 
+    // 表结构查看相关属性
+    [ObservableProperty]
+    private bool _isTableStructureVisible;
+
+    [ObservableProperty]
+    private string _tableStructureTitle = "";
+
+    [ObservableProperty]
+    private ObservableCollection<ColumnInfo> _tableStructureColumns = new();
+
     public ObservableCollection<DatabaseType> DatabaseTypes { get; } = new(Enum.GetValues<DatabaseType>());
     public ObservableCollection<string> ExecutionHistory { get; } = new();
     public ObservableCollection<string> Databases { get; } = new();
     public ObservableCollection<string> Tables { get; } = new();
     public ObservableCollection<string> AiModels { get; } = new();
 
+    // @提及表功能相关属性
+    [ObservableProperty]
+    private bool _isTableSuggestionVisible;
+
+    [ObservableProperty]
+    private string _tableSearchText = "";
+
+    [ObservableProperty]
+    private string? _selectedSuggestionTable;
+
+    public ObservableCollection<string> FilteredTables { get; } = new();
+
     public MainViewModel()
     {
         _connectionManager = new ConnectionManager();
         _sqlAgentService = new SqlAgentService(_connectionManager);
+        _settingsService = new AppSettingsService();
+        LoadSettings();
+    }
+
+    private void LoadSettings()
+    {
+        var settings = _settingsService.Load();
+        
+        // Database settings
+        _host = settings.Database.Host;
+        _port = settings.Database.Port;
+        _username = settings.Database.Username;
+        _password = settings.Database.Password;
+        _selectedDatabaseType = settings.Database.DatabaseType;
+        
+        // AI settings
+        _aiApiKey = settings.Ai.ApiKey;
+        _aiEndpoint = settings.Ai.Endpoint;
+        
+        // Add saved model to collection so it can be selected
+        if (!string.IsNullOrEmpty(settings.Ai.SelectedModel))
+        {
+            AiModels.Add(settings.Ai.SelectedModel);
+            _selectedAiModel = settings.Ai.SelectedModel;
+        }
+    }
+
+    private void SaveSettings()
+    {
+        var settings = new AppSettings
+        {
+            Database = new DatabaseSettings
+            {
+                Host = Host,
+                Port = Port,
+                Username = Username,
+                Password = Password,
+                DatabaseType = SelectedDatabaseType,
+                SelectedDatabase = SelectedDatabase
+            },
+            Ai = new AiSettings
+            {
+                ApiKey = AiApiKey,
+                Endpoint = AiEndpoint,
+                SelectedModel = SelectedAiModel
+            }
+        };
+        _settingsService.Save(settings);
     }
 
     partial void OnSelectedDatabaseTypeChanged(DatabaseType value)
@@ -198,6 +272,8 @@ public partial class MainViewModel : ObservableObject
             Endpoint = string.IsNullOrEmpty(AiEndpoint) ? null : AiEndpoint
         });
         AppendLog($"✓ AI model changed to: {SelectedAiModel}");
+        
+        SaveSettings();
     }
 
     [RelayCommand]
@@ -213,6 +289,9 @@ public partial class MainViewModel : ObservableObject
         {
             IsLoadingModels = true;
             StatusMessage = "Fetching models...";
+            
+            // Save before clearing - ComboBox may reset selection on clear
+            var previousModel = SelectedAiModel;
             AiModels.Clear();
 
             var modelService = new OpenAiModelService();
@@ -225,7 +304,14 @@ public partial class MainViewModel : ObservableObject
 
             if (AiModels.Count > 0)
             {
-                SelectedAiModel = AiModels[0];
+                if (!string.IsNullOrEmpty(previousModel) && AiModels.Contains(previousModel))
+                {
+                    SelectedAiModel = previousModel;
+                }
+                else
+                {
+                    SelectedAiModel = AiModels[0];
+                }
                 StatusMessage = $"Found {AiModels.Count} models";
             }
             else
@@ -270,11 +356,11 @@ public partial class MainViewModel : ObservableObject
                 SelectedDatabaseType,
                 config);
 
-            ReconfigureAiService();
-
             IsConnected = true;
             StatusMessage = $"Connected to {SelectedDatabaseType}://{Host}:{Port}";
             AppendLog($"✓ Connected to {SelectedDatabaseType}://{Host}:{Port}");
+            
+            SaveSettings();
 
             await LoadDatabasesAsync();
         }
@@ -516,10 +602,15 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
+        // 解析@提及的表名
+        var specifiedTables = ParseMentionedTables(ChatInput);
+        var cleanQuery = specifiedTables.Count > 0 ? RemoveTableMentions(ChatInput) : ChatInput;
+
         var userMessage = new ChatMessage(ChatInput, true);
         ChatMessages.Add(userMessage);
-        var userQuery = ChatInput;
+        var userQuery = cleanQuery;
         ChatInput = "";
+        HideTableSuggestions();
 
         var aiMessage = new ChatMessage("", false) { IsStreaming = true };
         ChatMessages.Add(aiMessage);
@@ -540,16 +631,89 @@ public partial class MainViewModel : ObservableObject
                 MaxRetries = MaxRetries
             });
 
+            // 步骤变更事件
+            executor.OnStepChanged += (_, e) =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    aiMessage.CurrentStep = e.Message;
+                    StatusMessage = e.Message;
+                    
+                    switch (e.Step)
+                    {
+                        case ExecutionStep.AnalyzingTables:
+                            aiMessage.UpdateStep(0, StepStatus.InProgress, "正在分析...");
+                            break;
+                        case ExecutionStep.GeneratingSql:
+                            aiMessage.UpdateStep(0, StepStatus.Completed);
+                            aiMessage.UpdateStep(1, StepStatus.InProgress, "正在生成...");
+                            break;
+                        case ExecutionStep.ExecutingSql:
+                            aiMessage.UpdateStep(1, StepStatus.Completed);
+                            aiMessage.UpdateStep(2, StepStatus.InProgress, "正在执行...");
+                            break;
+                        case ExecutionStep.Completed:
+                            aiMessage.UpdateStep(2, StepStatus.Completed, "完成");
+                            break;
+                        case ExecutionStep.Failed:
+                            aiMessage.UpdateStep(2, StepStatus.Failed, "失败");
+                            break;
+                        case ExecutionStep.Retrying:
+                            aiMessage.UpdateStep(2, StepStatus.Failed, "重试中...");
+                            break;
+                    }
+                });
+                AppendLog($"📍 {e.Message}");
+            };
+
+            // 表分析开始事件
+            executor.OnTableAnalysisStarted += (_, e) =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    aiMessage.TotalTableCount = e.TotalTables;
+                    aiMessage.TableAnalysisContent = "";
+                });
+                AppendLog($"🔍 开始分析表结构 (共 {e.TotalTables} 个表)");
+            };
+
+            // 表分析完成事件
+            executor.OnTableAnalysisCompleted += (_, e) =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    aiMessage.AnalyzedTables = e.SelectedTables;
+                    aiMessage.SelectedTableCount = e.SelectedTables.Count;
+                    aiMessage.TableAnalysisReasoning = e.Reasoning;
+                    aiMessage.UpdateStep(0, StepStatus.Completed, $"选中 {e.SelectedTables.Count}/{e.TotalTables} 个表");
+                });
+                AppendLog($"✓ 表分析完成: 选中 {e.SelectedTables.Count} 个表 - {string.Join(", ", e.SelectedTables)}");
+                if (!string.IsNullOrEmpty(e.Reasoning))
+                {
+                    AppendLog($"  原因: {e.Reasoning}");
+                }
+            };
+
             executor.OnPromptSending += (_, e) =>
             {
                 AppendLog($"📝 Chat Query: {e.UserQuery}");
+                AppendLog($"📊 使用 {e.FilteredTableCount}/{e.TotalTableCount} 个表生成SQL");
             };
 
+            // 流式输出事件 - 区分表分析和SQL生成阶段
             executor.OnStreaming += (_, e) =>
             {
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    aiMessage.AppendContent(e.Token);
+                    if (e.Phase == "TableAnalysis")
+                    {
+                        aiMessage.AppendTableAnalysis(e.Token);
+                    }
+                    else
+                    {
+                        aiMessage.AppendSqlGeneration(e.Token);
+                        aiMessage.AppendContent(e.Token);
+                    }
                 });
             };
 
@@ -560,36 +724,46 @@ public partial class MainViewModel : ObservableObject
                 {
                     aiMessage.Sql = e.Sql;
                 });
+                AppendLog($"✓ SQL已生成");
             };
 
             executor.OnSqlExecuted += (_, e) =>
             {
                 if (e.ExecutionResult?.Success == true)
                 {
-                    AppendLog($"✓ Execution successful ({e.ExecutionResult.ExecutionTime.TotalMilliseconds:F2}ms, {e.ExecutionResult.AffectedRows} rows)");
+                    AppendLog($"✓ 执行成功 ({e.ExecutionResult.ExecutionTime.TotalMilliseconds:F2}ms, {e.ExecutionResult.AffectedRows} 行)");
                 }
                 else
                 {
-                    AppendLog($"✗ Execution failed: {e.ExecutionResult?.ErrorMessage}");
+                    AppendLog($"✗ 执行失败: {e.ExecutionResult?.ErrorMessage}");
                 }
             };
 
-            var result = await executor.ExecuteAsync(userQuery, null, conversationHistory, cancellationToken);
+            executor.OnRetrying += (_, e) =>
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    aiMessage.Content += $"\n\n--- 重试 {e.AttemptNumber}/{e.MaxAttempts} ---\n错误: {e.ErrorMessage}\n\n";
+                });
+                AppendLog($"🔄 重试 {e.AttemptNumber}/{e.MaxAttempts}: {e.ErrorMessage}");
+            };
+
+            var result = await executor.ExecuteAsync(userQuery, null, conversationHistory, cancellationToken, specifiedTables);
 
             aiMessage.IsStreaming = false;
 
             if (result.Success)
             {
-                StatusMessage = $"Query executed successfully";
+                StatusMessage = $"执行成功 (使用 {result.AnalyzedTables.Count} 个表)";
                 QueryResult = result.ExecutionResult?.Data;
             }
             else
             {
-                StatusMessage = $"Query failed: {result.ErrorMessage}";
+                StatusMessage = $"执行失败: {result.ErrorMessage}";
                 aiMessage.IsError = true;
                 if (string.IsNullOrEmpty(aiMessage.Content))
                 {
-                    aiMessage.Content = $"Error: {result.ErrorMessage}";
+                    aiMessage.Content = $"错误: {result.ErrorMessage}";
                 }
             }
         }
@@ -731,6 +905,144 @@ public partial class MainViewModel : ObservableObject
         {
             CurrentStep = WorkflowStep.DatabaseConnection;
         }
+    }
+
+    // @提及表功能方法
+    public void UpdateTableSuggestions(string searchText)
+    {
+        TableSearchText = searchText;
+        FilteredTables.Clear();
+
+        if (string.IsNullOrEmpty(searchText))
+        {
+            foreach (var table in Tables)
+            {
+                FilteredTables.Add(table);
+            }
+        }
+        else
+        {
+            foreach (var table in Tables.Where(t => 
+                t.Contains(searchText, StringComparison.OrdinalIgnoreCase)))
+            {
+                FilteredTables.Add(table);
+            }
+        }
+
+        IsTableSuggestionVisible = FilteredTables.Count > 0;
+    }
+
+    public void ShowTableSuggestions()
+    {
+        FilteredTables.Clear();
+        foreach (var table in Tables)
+        {
+            FilteredTables.Add(table);
+        }
+        IsTableSuggestionVisible = Tables.Count > 0;
+    }
+
+    public void HideTableSuggestions()
+    {
+        IsTableSuggestionVisible = false;
+        FilteredTables.Clear();
+    }
+
+    // 标志位：选择表后抑制TextChanged处理
+    public bool SuppressTableSuggestion { get; set; }
+
+    [RelayCommand]
+    private void SelectSuggestionTable(string? tableName)
+    {
+        if (string.IsNullOrEmpty(tableName))
+            return;
+
+        // 设置标志位抑制TextChanged重新显示弹出框
+        SuppressTableSuggestion = true;
+
+        // 找到最后一个@的位置，替换为@表名
+        var lastAtIndex = ChatInput.LastIndexOf('@');
+        if (lastAtIndex >= 0)
+        {
+            ChatInput = ChatInput.Substring(0, lastAtIndex) + "@" + tableName + " ";
+        }
+        else
+        {
+            ChatInput += "@" + tableName + " ";
+        }
+
+        HideTableSuggestions();
+        
+        // 延迟重置标志，确保TextChanged事件处理完毕
+        Dispatcher.UIThread.Post(() => SuppressTableSuggestion = false);
+    }
+
+    // 解析@提及的表名
+    private List<string> ParseMentionedTables(string input)
+    {
+        var mentionedTables = new List<string>();
+        var regex = new System.Text.RegularExpressions.Regex(@"@(\w+)");
+        var matches = regex.Matches(input);
+
+        foreach (System.Text.RegularExpressions.Match match in matches)
+        {
+            var tableName = match.Groups[1].Value;
+            // 验证是否是有效的表名
+            if (Tables.Any(t => t.Equals(tableName, StringComparison.OrdinalIgnoreCase)))
+            {
+                var actualTableName = Tables.First(t => t.Equals(tableName, StringComparison.OrdinalIgnoreCase));
+                if (!mentionedTables.Contains(actualTableName))
+                {
+                    mentionedTables.Add(actualTableName);
+                }
+            }
+        }
+
+        return mentionedTables;
+    }
+
+    // 从输入中移除@提及，返回纯净的查询文本
+    private string RemoveTableMentions(string input)
+    {
+        var regex = new System.Text.RegularExpressions.Regex(@"@\w+\s*");
+        return regex.Replace(input, "").Trim();
+    }
+
+    // 显示表结构
+    [RelayCommand]
+    private async Task ShowTableStructureAsync(string? tableName)
+    {
+        if (string.IsNullOrEmpty(tableName) || !IsConnected)
+            return;
+
+        try
+        {
+            StatusMessage = $"Loading structure for {tableName}...";
+            var connector = _connectionManager.GetConnection(DefaultConnectionId);
+            if (connector == null) return;
+
+            var columns = await connector.GetTableColumnsAsync(tableName);
+            
+            TableStructureTitle = $"表结构: {tableName}";
+            TableStructureColumns.Clear();
+            foreach (var col in columns)
+            {
+                TableStructureColumns.Add(col);
+            }
+            IsTableStructureVisible = true;
+            StatusMessage = $"Loaded {columns.Count} columns for {tableName}";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to load table structure: {ex.Message}";
+            AppendLog($"✗ Failed to load table structure: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void CloseTableStructure()
+    {
+        IsTableStructureVisible = false;
     }
 
     private void AppendLog(string message)

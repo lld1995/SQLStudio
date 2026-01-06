@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SQLStudio.Core.Database;
@@ -17,6 +18,9 @@ public class SqlAgentExecutor
     public event EventHandler<SqlRetryEventArgs>? OnRetrying;
     public event EventHandler<SqlStreamingEventArgs>? OnStreaming;
     public event EventHandler<SqlPromptEventArgs>? OnPromptSending;
+    public event EventHandler<TableAnalysisEventArgs>? OnTableAnalysisStarted;
+    public event EventHandler<TableAnalysisEventArgs>? OnTableAnalysisCompleted;
+    public event EventHandler<StepChangedEventArgs>? OnStepChanged;
 
     public SqlAgentExecutor(
         ISqlGeneratorAgent sqlGenerator,
@@ -32,7 +36,8 @@ public class SqlAgentExecutor
         string userQuery,
         string? additionalContext = null,
         List<SqlGenerationHistory>? conversationHistory = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        List<string>? specifiedTables = null)
     {
         if (string.IsNullOrEmpty(_databaseConnector.CurrentDatabase))
         {
@@ -45,12 +50,120 @@ public class SqlAgentExecutor
             };
         }
 
-        var schema = await _databaseConnector.GetSchemaAsync(cancellationToken);
-        
+        // Step 1: 获取完整Schema
+        OnStepChanged?.Invoke(this, new StepChangedEventArgs
+        {
+            Step = ExecutionStep.FetchingSchema,
+            Message = "正在获取数据库结构..."
+        });
+
+        var fullSchema = await _databaseConnector.GetSchemaAsync(cancellationToken);
+
+        // Step 2: 分析需要的表（如果用户指定了表则跳过）
+        TableAnalysisResult analysisResult;
+        DatabaseSchema filteredSchema;
+
+        if (specifiedTables != null && specifiedTables.Count > 0)
+        {
+            // 用户通过@指定了表，跳过AI分析
+            OnStepChanged?.Invoke(this, new StepChangedEventArgs
+            {
+                Step = ExecutionStep.AnalyzingTables,
+                Message = $"使用用户指定的 {specifiedTables.Count} 个表..."
+            });
+
+            // 验证并过滤用户指定的表
+            var validTables = specifiedTables
+                .Where(t => fullSchema.Tables.Any(st => st.TableName.Equals(t, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            analysisResult = new TableAnalysisResult
+            {
+                Success = validTables.Count > 0,
+                RequiredTables = validTables,
+                Reasoning = "用户通过@指定的表"
+            };
+
+            filteredSchema = new DatabaseSchema
+            {
+                DatabaseName = fullSchema.DatabaseName,
+                Tables = fullSchema.Tables
+                    .Where(t => validTables.Contains(t.TableName, StringComparer.OrdinalIgnoreCase))
+                    .ToList()
+            };
+
+            OnTableAnalysisCompleted?.Invoke(this, new TableAnalysisEventArgs
+            {
+                UserQuery = userQuery,
+                TotalTables = fullSchema.Tables.Count,
+                SelectedTables = validTables,
+                Reasoning = "用户通过@指定的表"
+            });
+        }
+        else
+        {
+            // 正常的AI表分析流程
+            OnStepChanged?.Invoke(this, new StepChangedEventArgs
+            {
+                Step = ExecutionStep.AnalyzingTables,
+                Message = "正在分析需要的表..."
+            });
+
+            var tableAnalysisRequest = new TableAnalysisRequest
+            {
+                UserQuery = userQuery,
+                FullSchema = fullSchema,
+                DatabaseType = _databaseConnector.DatabaseType
+            };
+
+            OnTableAnalysisStarted?.Invoke(this, new TableAnalysisEventArgs
+            {
+                UserQuery = userQuery,
+                TotalTables = fullSchema.Tables.Count
+            });
+
+            analysisResult = await _sqlGenerator.AnalyzeRequiredTablesAsync(
+                tableAnalysisRequest,
+                token => OnStreaming?.Invoke(this, new SqlStreamingEventArgs { Token = token, AttemptNumber = 0, Phase = "TableAnalysis" }),
+                cancellationToken);
+
+            // 构建过滤后的Schema
+            if (analysisResult.Success && analysisResult.RequiredTables.Count > 0)
+            {
+                filteredSchema = new DatabaseSchema
+                {
+                    DatabaseName = fullSchema.DatabaseName,
+                    Tables = fullSchema.Tables
+                        .Where(t => analysisResult.RequiredTables.Contains(t.TableName, StringComparer.OrdinalIgnoreCase))
+                        .ToList()
+                };
+            }
+            else
+            {
+                // 如果分析失败，使用完整Schema
+                filteredSchema = fullSchema;
+            }
+
+            OnTableAnalysisCompleted?.Invoke(this, new TableAnalysisEventArgs
+            {
+                UserQuery = userQuery,
+                TotalTables = fullSchema.Tables.Count,
+                SelectedTables = analysisResult.RequiredTables,
+                Reasoning = analysisResult.Reasoning
+            });
+        }
+
+        // Step 3: 生成SQL
+        OnStepChanged?.Invoke(this, new StepChangedEventArgs
+        {
+            Step = ExecutionStep.GeneratingSql,
+            Message = $"正在生成SQL（使用 {filteredSchema.Tables.Count} 个表）..."
+        });
+
         var request = new SqlGenerationRequest
         {
             UserQuery = userQuery,
-            Schema = schema,
+            Schema = filteredSchema,
             DatabaseType = _databaseConnector.DatabaseType,
             AdditionalContext = additionalContext,
             History = conversationHistory
@@ -67,7 +180,8 @@ public class SqlAgentExecutor
                 OnStreaming?.Invoke(this, new SqlStreamingEventArgs
                 {
                     Token = token,
-                    AttemptNumber = attempt + 1
+                    AttemptNumber = attempt + 1,
+                    Phase = "SqlGeneration"
                 });
             };
 
@@ -80,7 +194,9 @@ public class SqlAgentExecutor
                     UserQuery = userQuery,
                     SystemPrompt = prompts.SystemPrompt,
                     UserPrompt = prompts.UserPrompt,
-                    AttemptNumber = attempt + 1
+                    AttemptNumber = attempt + 1,
+                    FilteredTableCount = filteredSchema.Tables.Count,
+                    TotalTableCount = fullSchema.Tables.Count
                 });
 
                 lastGenerationResult = await _sqlGenerator.GenerateSqlStreamingAsync(request, streamingCallback, cancellationToken);
@@ -103,6 +219,13 @@ public class SqlAgentExecutor
                     streamingCallback,
                     cancellationToken);
             }
+
+            // Step 4: 执行SQL
+            OnStepChanged?.Invoke(this, new StepChangedEventArgs
+            {
+                Step = ExecutionStep.ExecutingSql,
+                Message = "正在执行SQL..."
+            });
 
             if (!lastGenerationResult.Success || string.IsNullOrEmpty(lastGenerationResult.GeneratedSql))
             {
@@ -145,6 +268,12 @@ public class SqlAgentExecutor
 
             if (lastExecutionResult.Success)
             {
+                OnStepChanged?.Invoke(this, new StepChangedEventArgs
+                {
+                    Step = ExecutionStep.Completed,
+                    Message = "执行完成"
+                });
+
                 return new SqlAgentResult
                 {
                     Success = true,
@@ -152,10 +281,25 @@ public class SqlAgentExecutor
                     FinalExplanation = lastGenerationResult.Explanation,
                     ExecutionResult = lastExecutionResult,
                     Attempts = attempts,
-                    TotalAttempts = attempt + 1
+                    TotalAttempts = attempt + 1,
+                    AnalyzedTables = analysisResult.RequiredTables,
+                    TableAnalysisReasoning = analysisResult.Reasoning
                 };
             }
+
+            // Step: 重试
+            OnStepChanged?.Invoke(this, new StepChangedEventArgs
+            {
+                Step = ExecutionStep.Retrying,
+                Message = $"SQL执行出错，正在重试 ({attempt + 2}/{_options.MaxRetries})..."
+            });
         }
+
+        OnStepChanged?.Invoke(this, new StepChangedEventArgs
+        {
+            Step = ExecutionStep.Failed,
+            Message = "执行失败"
+        });
 
         return new SqlAgentResult
         {
@@ -165,7 +309,9 @@ public class SqlAgentExecutor
             ExecutionResult = lastExecutionResult,
             ErrorMessage = $"Failed after {_options.MaxRetries} attempts. Last error: {lastExecutionResult?.ErrorMessage}",
             Attempts = attempts,
-            TotalAttempts = _options.MaxRetries
+            TotalAttempts = _options.MaxRetries,
+            AnalyzedTables = analysisResult.RequiredTables,
+            TableAnalysisReasoning = analysisResult.Reasoning
         };
     }
 
@@ -324,6 +470,8 @@ public class SqlAgentResult
     public string? ErrorMessage { get; init; }
     public List<SqlAttempt> Attempts { get; init; } = new();
     public int TotalAttempts { get; init; }
+    public List<string> AnalyzedTables { get; init; } = new();
+    public string? TableAnalysisReasoning { get; init; }
 }
 
 public class SqlAttempt
@@ -356,6 +504,7 @@ public class SqlStreamingEventArgs : EventArgs
 {
     public string Token { get; init; } = string.Empty;
     public int AttemptNumber { get; init; }
+    public string Phase { get; init; } = "SqlGeneration";
 }
 
 public class SqlPromptEventArgs : EventArgs
@@ -364,4 +513,31 @@ public class SqlPromptEventArgs : EventArgs
     public string SystemPrompt { get; init; } = string.Empty;
     public string UserPrompt { get; init; } = string.Empty;
     public int AttemptNumber { get; init; }
+    public int FilteredTableCount { get; init; }
+    public int TotalTableCount { get; init; }
+}
+
+public class TableAnalysisEventArgs : EventArgs
+{
+    public string UserQuery { get; init; } = string.Empty;
+    public int TotalTables { get; init; }
+    public List<string> SelectedTables { get; init; } = new();
+    public string? Reasoning { get; init; }
+}
+
+public class StepChangedEventArgs : EventArgs
+{
+    public ExecutionStep Step { get; init; }
+    public string Message { get; init; } = string.Empty;
+}
+
+public enum ExecutionStep
+{
+    FetchingSchema,
+    AnalyzingTables,
+    GeneratingSql,
+    ExecutingSql,
+    Retrying,
+    Completed,
+    Failed
 }
