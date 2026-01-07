@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -35,6 +37,75 @@ public class ClickHouseDatabaseConnector : BaseDatabaseConnector
         await Connection.OpenAsync(cancellationToken);
     }
 
+    // Override ExecuteQueryAsync to handle ClickHouse.Client's Nullable type issue with DataTable.Load
+    public override async Task<SqlExecutionResult> ExecuteQueryAsync(string sql, CancellationToken cancellationToken = default)
+    {
+        if (Connection == null || !IsConnected)
+        {
+            return new SqlExecutionResult
+            {
+                Success = false,
+                ErrorMessage = "Database connection is not established",
+                ExecutedSql = sql
+            };
+        }
+
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            await using var command = Connection.CreateCommand();
+            command.CommandText = sql;
+            command.CommandTimeout = 300;
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            
+            // Manually build DataTable to avoid ClickHouse.Client's Nullable<> issue
+            var dataTable = new DataTable();
+            
+            // Add columns with base types (unwrap Nullable<T> to T)
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                var fieldType = reader.GetFieldType(i);
+                var baseType = Nullable.GetUnderlyingType(fieldType) ?? fieldType;
+                dataTable.Columns.Add(reader.GetName(i), baseType);
+            }
+            
+            // Read data rows
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var row = dataTable.NewRow();
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    var value = reader.GetValue(i);
+                    row[i] = value ?? DBNull.Value;
+                }
+                dataTable.Rows.Add(row);
+            }
+            
+            stopwatch.Stop();
+            return new SqlExecutionResult
+            {
+                Success = true,
+                Data = dataTable,
+                AffectedRows = dataTable.Rows.Count,
+                ExecutionTime = stopwatch.Elapsed,
+                ExecutedSql = sql
+            };
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            return new SqlExecutionResult
+            {
+                Success = false,
+                ErrorMessage = ex.Message,
+                ErrorCode = GetErrorCode(ex),
+                ExecutionTime = stopwatch.Elapsed,
+                ExecutedSql = sql
+            };
+        }
+    }
+
     public override async Task<List<string>> GetDatabasesAsync(CancellationToken cancellationToken = default)
     {
         var databases = new List<string>();
@@ -44,8 +115,12 @@ public class ClickHouseDatabaseConnector : BaseDatabaseConnector
         {
             foreach (DataRow row in result.Data.Rows)
             {
-                databases.Add(row["name"].ToString() ?? string.Empty);
+                databases.Add(row[0].ToString() ?? string.Empty);
             }
+        }
+        else if (!result.Success)
+        {
+            throw new InvalidOperationException($"Failed to load databases: {result.ErrorMessage}");
         }
 
         return databases;
@@ -70,18 +145,23 @@ public class ClickHouseDatabaseConnector : BaseDatabaseConnector
             Tables = new List<TableInfo>()
         };
 
-        var tables = await GetTablesAsync(cancellationToken);
-        foreach (var tableName in tables)
+        var tables = await GetTablesAsync(cancellationToken).ConfigureAwait(false);
+        
+        // 并行获取所有表的结构信息以提高性能
+        var tasks = tables.Select(async tableName =>
         {
-            var columns = await GetTableColumnsAsync(tableName, cancellationToken);
-            var sampleData = await GetTableSampleDataAsync(tableName, columns, cancellationToken);
-            schema.Tables.Add(new TableInfo
+            var columns = await GetTableColumnsAsync(tableName, cancellationToken).ConfigureAwait(false);
+            var sampleData = await GetTableSampleDataAsync(tableName, columns, cancellationToken).ConfigureAwait(false);
+            return new TableInfo
             {
                 TableName = tableName,
                 Columns = columns,
                 SampleData = sampleData
-            });
-        }
+            };
+        });
+
+        var tableInfos = await Task.WhenAll(tasks).ConfigureAwait(false);
+        schema.Tables.AddRange(tableInfos);
 
         return schema;
     }
@@ -150,7 +230,7 @@ public class ClickHouseDatabaseConnector : BaseDatabaseConnector
         {
             foreach (DataRow row in result.Data.Rows)
             {
-                tables.Add(row["name"].ToString() ?? string.Empty);
+                tables.Add(row[0].ToString() ?? string.Empty);
             }
         }
 
@@ -178,15 +258,15 @@ public class ClickHouseDatabaseConnector : BaseDatabaseConnector
         {
             foreach (DataRow row in result.Data.Rows)
             {
-                var dataType = row["type"].ToString() ?? string.Empty;
+                var dataType = row[1].ToString() ?? string.Empty;
                 columns.Add(new ColumnInfo
                 {
-                    ColumnName = row["name"].ToString() ?? string.Empty,
+                    ColumnName = row[0].ToString() ?? string.Empty,
                     DataType = dataType,
                     IsNullable = dataType.StartsWith("Nullable"),
-                    IsPrimaryKey = Convert.ToBoolean(row["is_in_primary_key"]),
-                    DefaultValue = row["default_expression"]?.ToString(),
-                    Comment = row["comment"]?.ToString()
+                    IsPrimaryKey = Convert.ToBoolean(row[5]),
+                    DefaultValue = row[3]?.ToString(),
+                    Comment = row[4]?.ToString()
                 });
             }
         }

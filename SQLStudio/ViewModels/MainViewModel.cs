@@ -294,6 +294,7 @@ public partial class MainViewModel : ObservableObject
     partial void OnSelectedDatabaseChanged(string? value)
     {
         OnPropertyChanged(nameof(CanGoToStep2));
+        Tables.Clear();
         if (!string.IsNullOrEmpty(value) && IsConnected)
         {
             _ = LoadTablesAsync();
@@ -428,10 +429,17 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var connector = _connectionManager.GetConnection(DefaultConnectionId);
-            if (connector == null) return;
+            if (connector == null)
+            {
+                AppendLog($"✗ Connector is null");
+                return;
+            }
 
+            AppendLog($"Loading databases from {connector.DatabaseType}...");
             StatusMessage = "Loading databases...";
             var databases = await connector.GetDatabasesAsync();
+            
+            AppendLog($"GetDatabasesAsync returned {databases.Count} items");
             
             Databases.Clear();
             foreach (var db in databases)
@@ -444,7 +452,8 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            AppendLog($"✗ Failed to load databases: {ex.Message}");
+            StatusMessage = $"Failed to load databases: {ex.Message}";
+            AppendLog($"✗ Failed to load databases: {ex.Message}\n{ex.StackTrace}");
         }
     }
 
@@ -1517,45 +1526,82 @@ public partial class MainViewModel : ObservableObject
                 }
             };
 
-            // 流式输出
+            // 流式输出 - 使用节流机制减少UI更新频率
+            var contentBuffer = new StringBuilder();
+            var lastUpdateTime = DateTime.UtcNow;
+            const int updateIntervalMs = 50; // 每50ms更新一次UI
+
             await foreach (var chunk in chatService.GetStreamingChatMessageContentsAsync(
-                chatHistory, settings, cancellationToken: cancellationToken))
+                chatHistory, settings, cancellationToken: cancellationToken).ConfigureAwait(false))
             {
                 if (!string.IsNullOrEmpty(chunk.Content))
                 {
-                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    contentBuffer.Append(chunk.Content);
+                    
+                    var now = DateTime.UtcNow;
+                    if ((now - lastUpdateTime).TotalMilliseconds >= updateIntervalMs)
                     {
-                        aiMessage.AppendContent(chunk.Content);
-                    });
+                        var content = contentBuffer.ToString();
+                        contentBuffer.Clear();
+                        lastUpdateTime = now;
+                        
+                        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        {
+                            aiMessage.AppendContent(content);
+                        });
+                    }
                 }
             }
+            
+            // 刷新剩余内容
+            if (contentBuffer.Length > 0)
+            {
+                var remainingContent = contentBuffer.ToString();
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    aiMessage.AppendContent(remainingContent);
+                });
+            }
 
-            aiMessage.IsStreaming = false;
-            StatusMessage = "回答完成";
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                aiMessage.IsStreaming = false;
+                StatusMessage = "回答完成";
+            });
         }
         catch (OperationCanceledException)
         {
-            StatusMessage = "Generation stopped";
-            aiMessage.IsStreaming = false;
-            if (string.IsNullOrEmpty(aiMessage.Content))
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                aiMessage.Content = "[Stopped by user]";
-            }
-            else
-            {
-                aiMessage.Content += "\n[Stopped by user]";
-            }
+                StatusMessage = "Generation stopped";
+                aiMessage.IsStreaming = false;
+                if (string.IsNullOrEmpty(aiMessage.Content))
+                {
+                    aiMessage.Content = "[Stopped by user]";
+                }
+                else
+                {
+                    aiMessage.Content += "\n[Stopped by user]";
+                }
+            });
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Error: {ex.Message}";
-            aiMessage.IsStreaming = false;
-            aiMessage.IsError = true;
-            aiMessage.Content = $"Error: {ex.Message}";
+            var errorMessage = ex.Message;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                StatusMessage = $"Error: {errorMessage}";
+                aiMessage.IsStreaming = false;
+                aiMessage.IsError = true;
+                aiMessage.Content = $"Error: {errorMessage}";
+            });
         }
         finally
         {
-            IsExecuting = false;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                IsExecuting = false;
+            });
             _chatCancellationTokenSource?.Dispose();
             _chatCancellationTokenSource = null;
         }

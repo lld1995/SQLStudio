@@ -77,18 +77,23 @@ public class SqlServerDatabaseConnector : BaseDatabaseConnector
             Tables = new List<TableInfo>()
         };
 
-        var tables = await GetTablesAsync(cancellationToken);
-        foreach (var tableName in tables)
+        var tables = await GetTablesAsync(cancellationToken).ConfigureAwait(false);
+        
+        // 并行获取所有表的结构信息以提高性能
+        var tasks = tables.Select(async tableName =>
         {
-            var columns = await GetTableColumnsAsync(tableName, cancellationToken);
-            var sampleData = await GetTableSampleDataAsync(tableName, columns, cancellationToken);
-            schema.Tables.Add(new TableInfo
+            var columns = await GetTableColumnsAsync(tableName, cancellationToken).ConfigureAwait(false);
+            var sampleData = await GetTableSampleDataAsync(tableName, columns, cancellationToken).ConfigureAwait(false);
+            return new TableInfo
             {
                 TableName = tableName,
                 Columns = columns,
                 SampleData = sampleData
-            });
-        }
+            };
+        });
+
+        var tableInfos = await Task.WhenAll(tasks).ConfigureAwait(false);
+        schema.Tables.AddRange(tableInfos);
 
         return schema;
     }
