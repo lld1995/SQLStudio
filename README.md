@@ -1,175 +1,298 @@
-# SQL Studio - AI SQL Generator
+ 📊 查看表 📊 查看 📊  📊 <div align="center">
 
-基于AI的SQL生成智能体，支持模块化数据库连接器，具有自动错误重试机制。
+# ⚡ SQL Studio
 
-## 功能特性
+**🤖 AI-Powered Natural Language to SQL Desktop Application**
 
-- **模块化数据库连接器**: 动态支持 MySQL、ClickHouse、PostgreSQL、SQL Server
-- **AI SQL 生成**: 基于自然语言描述自动生成SQL查询
-- **错误自动重试**: SQL执行失败时自动将错误信息反馈给AI重新生成
-- **多AI提供商支持**: OpenAI、Azure OpenAI、Ollama
+> 💬 用自然语言描述需求，AI 帮你生成并执行 SQL
 
-## 项目结构
+<div>
+
+[![.NET](https://img.shields.io/badge/.NET-9.0-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
+[![Avalonia](https://img.shields.io/badge/Avalonia-11.3-8B44AC?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xMiAyTDEgMjFoMjJMMTIgMnoiLz48L3N2Zz4=&logoColor=white)](https://avaloniaui.net/)
+[![Semantic Kernel](https://img.shields.io/badge/Semantic_Kernel-1.30-0078D4?style=for-the-badge&logo=microsoft&logoColor=white)](https://github.com/microsoft/semantic-kernel)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+
+</div>
+
+<br/>
+
+[✨ 功能特性](#-功能特性) • [🚀 快速开始](#-快速开始) • [📸 截图演示](#-截图演示) • [🛠️ 技术栈](#️-技术栈) • [🤝 贡献指南](#-贡献指南)
+
+</div>
+ 
+---
+ 
+## 📸 截图演示
+
+<div align="center">
+
+### 🎯 核心功能展示
+
+| 🔗 连接数据库 | 🤖 配置 AI | 💬 SQL 生成中 |
+|:---:|:---:|:---:|
+| ![Step 1](assets/1.png) | ![Step 2](assets/2.png) | ![Step 3a](assets/3a.png) |
+| *快速连接多种数据库* | *灵活配置 AI 服务* | *AI 分析表结构* |
+
+| 💬 SQL 生成完成 | 📊 查看表结构| 📚 场景知识库 |
+|:---:|:---:|:---:|
+| ![Step 3b](assets/3b.png) | ![Step 4](assets/4.png) | ![Step 5](assets/5.png) |
+| *生成 SQL 并执行* | *可视化数据展示* | *业务知识沉淀* |
+
+| 🧠 数据库问答 |
+|:---:|
+| ![Step 6](assets/6.png) |
+| *智能问答理解数据库结构* |
+
+</div>
+
+> 💡 **提示**：截图展示应用的完整工作流程，从数据库连接到 SQL 生成执行的全过程
+ 
+---
+ 
+## ✨ 功能特性
+
+<div align="center">
+
+### 🎨 核心亮点
+
+</div>
+
+<table>
+<tr>
+<td width="50%">
+
+#### 🤖 AI 驱动
+
+- ⚡ **自然语言转 SQL** - 用中文/英文描述需求，AI 自动生成
+- 🌊 **流式输出** - 实时查看 SQL 生成过程
+- 🔄 **智能重试** - 执行失败自动修正（可配置次数）
+- 🧠 **表结构感知** - AI 自动分析相关表结构
+
+</td>
+<td width="50%">
+
+#### 💬 聊天式交互
+
+- 💭 **对话上下文** - 支持多轮对话优化 SQL
+- @ **表名提及** - 精确指定要查询的表
+- 📜 **历史模式** - 完整历史 / 仅上次 SQL
+- ⏹️ **一键停止** - 随时中断生成过程
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+#### 🗄️ 多数据库支持
+
+<div>
+
+- ✅ **MySQL** - 广泛使用的开源数据库
+- ✅ **PostgreSQL** - 功能强大的关系型数据库
+- ✅ **SQL Server** - 企业级数据库解决方案
+- ✅ **ClickHouse** - 高性能列式数据库
+
+</div>
+
+</td>
+<td width="50%">
+
+#### 📊 结果管理
+
+- 📋 **DataGrid 预览** - 表格化展示查询结果
+- 💾 **一键导出 CSV** - 快速导出数据
+- 🔍 **表结构查看** - 双击表名查看列信息
+- 📝 **执行日志** - 完整的执行过程记录
+
+</td>
+</tr>
+<tr>
+<td colspan="2">
+
+#### 📚 场景知识库
+
+> 💡 沉淀业务口径、约束条件、常用查询模式，让 AI 生成更贴合业务的 SQL
+
+</td>
+</tr>
+</table>
+ 
+---
+ 
+## 🚀 快速开始
+
+### 📋 环境要求
+
+<div align="center">
+
+| 依赖 | 版本 | 说明 |
+|:---:|:---:|:---|
+| 🟣 **.NET SDK** | `9.0+` | [下载地址](https://dotnet.microsoft.com/download) |
+| 🗄️ **数据库** | `-` | MySQL / PostgreSQL / SQL Server / ClickHouse 之一 |
+| 🤖 **AI 服务** | `-` | OpenAI API 或兼容接口 / Ollama |
+
+</div>
+
+### ⚙️ 安装运行
+
+```bash
+# 1️⃣ 克隆仓库
+git clone https://github.com/your-username/SQLStudio.git
+cd SQLStudio
+
+# 2️⃣ 还原依赖
+dotnet restore
+
+# 3️⃣ 运行应用
+dotnet run --project SQLStudio/SQLStudio.csproj
+```
+
+### 🎯 三步工作流
+
+<div align="center">
+
+```
+┌─────────────────────┐      ┌─────────────────────┐      ┌─────────────────────┐
+│   1️⃣ 连接数据库      │  ➜   │   2️⃣ 配置 AI         │  ➜   │   3️⃣ SQL 工作区       │
+│                      │      │                      │      │                      │
+│  • 选择数据库类型     │      │  • 填写 API 地址      │      │  • 输入自然语言       │
+│  • 填写连接信息       │      │  • 加载模型列表       │      │  • 查看生成的 SQL     │
+│  • 选择目标库         │      │  • 选择模型          │      │  • 执行并查看结果     │
+└─────────────────────┘      └─────────────────────┘      └─────────────────────┘
+```
+
+</div>
+ 
+---
+ 
+## 🛠️ 技术栈
+
+<div align="center">
+
+| 类别 | 技术 |
+|:---:|:---|
+| 🎨 **框架** | .NET 9 / Avalonia UI 11.3 |
+| 🏗️ **架构** | MVVM (CommunityToolkit.Mvvm) |
+| 🤖 **AI** | Microsoft Semantic Kernel + OpenAI / Ollama Connector |
+| 🗄️ **数据库** | MySqlConnector / Npgsql / Microsoft.Data.SqlClient / ClickHouse.Client |
+
+</div>
+
+### 🌐 支持的 AI 服务
+
+<div align="center">
+
+| 服务 | 说明 |
+|:---:|:---|
+| 🔵 **OpenAI** | 官方 API 或任何兼容 `/v1` 接口的服务 |
+| 🔷 **Azure OpenAI** | 通过 OpenAI 兼容方式接入 |
+| 🟢 **Ollama** | 本地部署的开源模型 |
+| 🔶 **其他** | 任何 OpenAI API 兼容的网关/代理 |
+
+</div>
+ 
+---
+ 
+## 📁 项目结构
 
 ```
 SQLStudio/
-├── Core/
-│   ├── AI/
-│   │   ├── ISqlGeneratorAgent.cs      # SQL生成代理接口
-│   │   ├── SqlGeneratorAgent.cs       # SQL生成代理实现
-│   │   ├── SqlAgentExecutor.cs        # SQL执行器（含重试机制）
-│   │   └── AiServiceFactory.cs        # AI服务工厂
-│   ├── Database/
-│   │   ├── IDatabaseConnector.cs      # 数据库连接器接口
-│   │   ├── BaseDatabaseConnector.cs   # 连接器基类
-│   │   ├── DatabaseConnectorFactory.cs# 连接器工厂
-│   │   └── Connectors/
-│   │       ├── MySqlDatabaseConnector.cs
-│   │       ├── ClickHouseDatabaseConnector.cs
-│   │       ├── PostgreSqlDatabaseConnector.cs
-│   │       └── SqlServerDatabaseConnector.cs
-│   └── Services/
-│       └── ServiceConfiguration.cs    # 服务配置
-├── ViewModels/
-│   └── MainViewModel.cs               # 主视图模型
-├── MainWindow.axaml                   # 主窗口UI
-└── appsettings.json                   # 配置文件
+├── 📂 Core/
+│   ├── 📂 AI/              # LLM 集成（模型服务、SQL 生成器）
+│   ├── 📂 Database/        # 数据库连接器与元数据
+│   └── 📂 Services/        # 业务服务（设置、知识库、Agent）
+├── 📂 ViewModels/          # MVVM ViewModel
+├── 📂 Converters/          # 值转换器
+├── 📄 MainWindow.axaml     # 主界面
+├── 📄 App.axaml            # 应用入口
+└── 📄 appsettings.json     # 示例配置
 ```
+ 
+---
+ 
+## ⚙️ 配置说明
 
-## 快速开始
+### 📂 数据存储位置
 
-### 1. 配置
+应用会自动在用户目录创建配置文件：
 
-编辑 `appsettings.json` 配置AI和数据库连接：
+<div align="center">
 
-```json
-{
-  "AI": {
-    "Provider": "OpenAI",
-    "ApiKey": "your-api-key-here",
-    "ModelId": "gpt-4o"
-  },
-  "DefaultDatabase": {
-    "Type": "MySQL",
-    "Host": "localhost",
-    "Port": 3306,
-    "Database": "test",
-    "Username": "root",
-    "Password": ""
-  }
-}
-```
+| 文件 | Windows 路径 | 说明 |
+|:---:|:---:|:---|
+| `settings.json` | `%APPDATA%\SQLStudio\` | 连接信息、AI 配置 |
+| `scenario_knowledge.json` | `%APPDATA%\SQLStudio\` | 场景知识库 |
 
-### 2. 运行
+</div>
 
-```bash
-cd SQLStudio
-dotnet run
-```
+### 🔒 安全建议
 
-### 3. 使用
+> ⚠️ **重要提示**：请勿在仓库中提交真实的数据库密码或 API Key
 
-1. 在界面中配置数据库连接信息和AI API Key
-2. 点击 "Connect" 连接数据库
-3. 在 "Natural Language Query" 输入框中输入自然语言描述
-4. 点击 "Generate & Execute SQL" 生成并执行SQL
+- 🔐 使用最小权限的数据库账号
+- 🔑 API Key 建议使用环境变量或安全存储
+- 🛡️ 定期更新依赖包以获取安全补丁
+ 
+---
+ 
+## 🗺️ Roadmap
 
-## 核心架构
+<div align="center">
 
-### 数据库连接器
+| 功能 | 状态 | 描述 |
+|:---:|:---:|:---|
+| 🔒 SQL 安全策略 | 🚧 规划中 | 只读模式、危险语句拦截 |
+| 📊 结果集优化 | 🚧 规划中 | 分页与大表优化 |
+| 🎨 提示词调优 | 🚧 规划中 | 可视化提示词调优界面 |
+| 📦 发行版打包 | 🚧 规划中 | Windows/macOS/Linux 安装包 |
+| 🔄 自动更新 | 🚧 规划中 | 自动更新机制 |
+| 🌐 多语言支持 | 🚧 规划中 | 国际化支持 |
 
-```csharp
-// 创建连接器
-var connector = DatabaseConnectorFactory.Create(DatabaseType.MySQL);
+</div>
+ 
+---
+ 
+## 🤝 贡献指南
 
-// 连接数据库
-await connector.ConnectAsync(new DatabaseConnectionConfig
-{
-    Host = "localhost",
-    Port = 3306,
-    Database = "mydb",
-    Username = "root",
-    Password = "password"
-});
+<div align="center">
 
-// 执行查询
-var result = await connector.ExecuteQueryAsync("SELECT * FROM users");
-```
+**欢迎提交 Issue 和 Pull Request！** 🎉
 
-### AI SQL 生成
+</div>
 
-```csharp
-// 配置AI服务
-var aiConfig = new AiServiceConfig
-{
-    Provider = AiProvider.OpenAI,
-    ApiKey = "your-api-key",
-    ModelId = "gpt-4o"
-};
+### 📝 提交 Issue
 
-var sqlGenerator = AiServiceFactory.CreateSqlGenerator(aiConfig);
+请包含以下信息：
 
-// 生成SQL
-var result = await sqlGenerator.GenerateSqlAsync(new SqlGenerationRequest
-{
-    UserQuery = "查询最近30天注册的用户",
-    Schema = schema,
-    DatabaseType = "MySQL"
-});
-```
+- 💻 操作系统与 .NET 版本
+- 🗄️ 数据库类型与版本
+- 🤖 AI Provider 信息
+- 📋 复现步骤与期望行为
 
-### 错误重试机制
+### 🔀 提交 PR
 
-```csharp
-var executor = new SqlAgentExecutor(sqlGenerator, connector, new SqlAgentOptions
-{
-    MaxRetries = 3
-});
+- ✅ 保持改动聚焦，一个 PR 解决一个问题
+- 📸 提供必要的说明和截图
+- 🚫 **禁止提交任何密钥或敏感数据**
+- 📖 遵循项目的代码风格和规范
+ 
+---
+ 
+## 📄 License
 
-// 订阅事件
-executor.OnSqlGenerated += (_, e) => Console.WriteLine($"Generated: {e.Sql}");
-executor.OnRetrying += (_, e) => Console.WriteLine($"Retrying due to: {e.ErrorMessage}");
+本项目采用 [MIT License](LICENSE) 开源。
 
-// 执行（自动重试）
-var result = await executor.ExecuteAsync("查询所有活跃用户");
-```
+---
 
-## 扩展新的数据库连接器
+<div align="center">
 
-1. 创建新类继承 `BaseDatabaseConnector`
-2. 实现抽象方法
-3. 在 `DatabaseConnectorFactory` 中注册
+### ⭐ 如果这个项目对你有帮助，请给一个 Star！
 
-```csharp
-public class MyDatabaseConnector : BaseDatabaseConnector
-{
-    public override string DatabaseType => "MyDatabase";
-    
-    public override async Task ConnectAsync(DatabaseConnectionConfig config, CancellationToken ct)
-    {
-        // 实现连接逻辑
-    }
-    
-    // 实现其他抽象方法...
-}
+Made with ❤️ by [Your Name]
 
-// 注册
-DatabaseConnectorFactory.RegisterConnector(
-    DatabaseType.MyDatabase, 
-    () => new MyDatabaseConnector()
-);
-```
+---
 
-## 依赖
+**SQL Studio** - 让 SQL 生成变得简单自然 🚀
 
-- .NET 9.0
-- Avalonia UI 11.3
-- Microsoft Semantic Kernel
-- MySqlConnector
-- ClickHouse.Client
-- Npgsql
-- Microsoft.Data.SqlClient
-
-## License
-
-MIT
+</div>

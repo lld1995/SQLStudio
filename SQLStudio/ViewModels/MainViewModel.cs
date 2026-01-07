@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Data;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
@@ -103,6 +104,12 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<ChatMessage> ChatMessages { get; } = new();
 
+    // 问答页面相关属性
+    [ObservableProperty]
+    private string _qaChatInput = "";
+
+    public ObservableCollection<ChatMessage> QaChatMessages { get; } = new();
+
     [ObservableProperty]
     private string _generatedSql = "";
 
@@ -149,6 +156,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(QueryResultColumns));
+        OnPropertyChanged(nameof(CanExportQueryResult));
     }
 
     [ObservableProperty]
@@ -914,6 +922,51 @@ public partial class MainViewModel : ObservableObject
         ExecutionLog = "";
     }
 
+    public bool CanExportQueryResult => QueryResultRows.Count > 0 && QueryResultColumns.Count > 0;
+
+    public string ExportQueryResultToCsv(string filePath)
+    {
+        if (QueryResultRows.Count == 0 || QueryResultColumns.Count == 0)
+        {
+            throw new InvalidOperationException("没有可导出的数据");
+        }
+
+        var csv = new System.Text.StringBuilder();
+
+        // 写入表头
+        csv.AppendLine(string.Join(",", QueryResultColumns.Select(col => EscapeCsvField(col))));
+
+        // 写入数据行
+        foreach (var row in QueryResultRows)
+        {
+            var values = QueryResultColumns.Select(col =>
+            {
+                var value = row.TryGetValue(col, out var val) ? val : null;
+                return EscapeCsvField(value?.ToString() ?? "");
+            });
+            csv.AppendLine(string.Join(",", values));
+        }
+
+        System.IO.File.WriteAllText(filePath, csv.ToString(), System.Text.Encoding.UTF8);
+        return filePath;
+    }
+
+    private string EscapeCsvField(string? field)
+    {
+        if (field == null)
+            return "";
+
+        // 如果字段包含逗号、引号或换行符，需要用引号括起来
+        if (field.Contains(',') || field.Contains('"') || field.Contains('\n') || field.Contains('\r'))
+        {
+            // 转义引号：将 " 替换为 ""
+            field = field.Replace("\"", "\"\"");
+            return $"\"{field}\"";
+        }
+
+        return field;
+    }
+
     [RelayCommand]
     private void GoToStep(WorkflowStep step)
     {
@@ -995,6 +1048,18 @@ public partial class MainViewModel : ObservableObject
     {
         if (string.IsNullOrEmpty(tableName))
             return;
+
+        // 检查该表是否已经被选择
+        var alreadySelectedTables = ParseMentionedTables(ChatInput);
+        var actualTableName = Tables.FirstOrDefault(t => t.Equals(tableName, StringComparison.OrdinalIgnoreCase));
+        
+        if (actualTableName != null && alreadySelectedTables.Any(t => t.Equals(actualTableName, StringComparison.OrdinalIgnoreCase)))
+        {
+            // 表已经被选择，不重复添加
+            HideTableSuggestions();
+            AppendLog($"提示: 表 {actualTableName} 已经被选择");
+            return;
+        }
 
         // 设置标志位抑制TextChanged重新显示弹出框
         SuppressTableSuggestion = true;
@@ -1363,5 +1428,207 @@ public partial class MainViewModel : ObservableObject
         {
             IsExtractingKeywords = false;
         }
+    }
+
+    // 问答页面相关方法
+    [RelayCommand]
+    private async Task SendQaMessageAsync()
+    {
+        if (string.IsNullOrWhiteSpace(QaChatInput))
+            return;
+
+        if (!IsConnected)
+        {
+            StatusMessage = "Not connected to database";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(SelectedAiModel))
+        {
+            StatusMessage = "Please select an AI model first (click '获取模型')";
+            return;
+        }
+
+        var userMessage = new ChatMessage(QaChatInput, true);
+        QaChatMessages.Add(userMessage);
+        var userQuery = QaChatInput;
+        QaChatInput = "";
+
+        var aiMessage = new ChatMessage("", false) { IsStreaming = true, ShowSteps = false };
+        QaChatMessages.Add(aiMessage);
+
+        _chatCancellationTokenSource?.Cancel();
+        _chatCancellationTokenSource = new CancellationTokenSource();
+        var cancellationToken = _chatCancellationTokenSource.Token;
+
+        try
+        {
+            IsExecuting = true;
+            StatusMessage = "正在获取数据库结构...";
+
+            var connector = _connectionManager.GetConnection(DefaultConnectionId);
+            if (connector == null)
+            {
+                StatusMessage = "Connection not found";
+                return;
+            }
+
+            // 获取完整Schema
+            var fullSchema = await connector.GetSchemaAsync(cancellationToken);
+            StatusMessage = "正在生成回答...";
+
+            var chatService = _sqlAgentService.GetChatService();
+            if (chatService == null)
+            {
+                StatusMessage = "AI服务未配置";
+                return;
+            }
+
+            // 构建系统提示，包含完整Schema
+            var systemPrompt = BuildQaSystemPrompt(fullSchema);
+            var chatHistory = new ChatHistory();
+            chatHistory.AddSystemMessage(systemPrompt);
+
+            // 添加历史对话（仅问答页面的消息）
+            foreach (var msg in QaChatMessages)
+            {
+                if (msg == userMessage || msg == aiMessage) continue;
+                if (!string.IsNullOrEmpty(msg.Content))
+                {
+                    if (msg.IsUser)
+                    {
+                        chatHistory.AddUserMessage(msg.Content);
+                    }
+                    else
+                    {
+                        chatHistory.AddAssistantMessage(msg.Content);
+                    }
+                }
+            }
+
+            chatHistory.AddUserMessage(userQuery);
+
+            var settings = new PromptExecutionSettings
+            {
+                ExtensionData = new Dictionary<string, object>
+                {
+                    ["temperature"] = 0.7,
+                    ["max_tokens"] = 2000
+                }
+            };
+
+            // 流式输出
+            await foreach (var chunk in chatService.GetStreamingChatMessageContentsAsync(
+                chatHistory, settings, cancellationToken: cancellationToken))
+            {
+                if (!string.IsNullOrEmpty(chunk.Content))
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    {
+                        aiMessage.AppendContent(chunk.Content);
+                    });
+                }
+            }
+
+            aiMessage.IsStreaming = false;
+            StatusMessage = "回答完成";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "Generation stopped";
+            aiMessage.IsStreaming = false;
+            if (string.IsNullOrEmpty(aiMessage.Content))
+            {
+                aiMessage.Content = "[Stopped by user]";
+            }
+            else
+            {
+                aiMessage.Content += "\n[Stopped by user]";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error: {ex.Message}";
+            aiMessage.IsStreaming = false;
+            aiMessage.IsError = true;
+            aiMessage.Content = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            IsExecuting = false;
+            _chatCancellationTokenSource?.Dispose();
+            _chatCancellationTokenSource = null;
+        }
+    }
+
+    private string BuildQaSystemPrompt(DatabaseSchema schema)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("你是一个数据库专家助手，可以帮助用户理解数据库结构、表关系、数据含义等问题。");
+        sb.AppendLine("请根据提供的数据库Schema信息，回答用户的问题。");
+        sb.AppendLine("注意：你只需要回答问题，不需要生成SQL语句。");
+        sb.AppendLine();
+        sb.AppendLine("数据库Schema信息：");
+        sb.AppendLine(FormatSchemaForQa(schema));
+        
+        return sb.ToString();
+    }
+
+    private string FormatSchemaForQa(DatabaseSchema schema)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"数据库名称: {schema.DatabaseName}");
+        sb.AppendLine();
+        
+        foreach (var table in schema.Tables)
+        {
+            sb.AppendLine($"表名: {table.TableName}");
+            if (!string.IsNullOrEmpty(table.TableComment))
+            {
+                sb.AppendLine($"  说明: {table.TableComment}");
+            }
+            sb.AppendLine("  列信息:");
+            
+            foreach (var column in table.Columns)
+            {
+                var flags = new List<string>();
+                if (column.IsPrimaryKey) flags.Add("主键");
+                if (!column.IsNullable) flags.Add("非空");
+                if (!string.IsNullOrEmpty(column.DefaultValue)) flags.Add($"默认值: {column.DefaultValue}");
+                
+                var flagStr = flags.Count > 0 ? $" [{string.Join(", ", flags)}]" : "";
+                var commentStr = !string.IsNullOrEmpty(column.Comment) ? $" -- {column.Comment}" : "";
+                
+                sb.AppendLine($"    - {column.ColumnName}: {column.DataType}{flagStr}{commentStr}");
+            }
+            
+            // 添加样例数据
+            if (table.SampleData != null && table.SampleData.Count > 0)
+            {
+                sb.AppendLine("  样例数据:");
+                foreach (var sampleRow in table.SampleData)
+                {
+                    var rowValues = new List<string>();
+                    foreach (var column in table.Columns)
+                    {
+                        var value = sampleRow.ContainsKey(column.ColumnName) 
+                            ? sampleRow[column.ColumnName] 
+                            : "NULL";
+                        rowValues.Add($"{column.ColumnName}={value}");
+                    }
+                    sb.AppendLine($"    - {string.Join(", ", rowValues)}");
+                }
+            }
+            
+            sb.AppendLine();
+        }
+        
+        return sb.ToString();
+    }
+
+    [RelayCommand]
+    private void ClearQaChat()
+    {
+        QaChatMessages.Clear();
     }
 }
