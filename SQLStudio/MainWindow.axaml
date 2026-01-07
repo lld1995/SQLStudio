@@ -88,42 +88,61 @@
         <Style Selector="Button">
             <Setter Property="Background" Value="#21262d"/>
             <Setter Property="BorderBrush" Value="#30363d"/>
-            <Setter Property="Foreground" Value="#e6edf3"/>
+            <Setter Property="Foreground" Value="White"/>
             <Setter Property="CornerRadius" Value="6"/>
             <Setter Property="Padding" Value="16,10"/>
             <Setter Property="FontWeight" Value="Medium"/>
         </Style>
-        <Style Selector="Button:pointerover">
+        <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="#30363d"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#1a1e24"/>
+            <Setter Property="Foreground" Value="White"/>
         </Style>
         <Style Selector="Button.primary">
             <Setter Property="Background" Value="#238636"/>
             <Setter Property="BorderBrush" Value="#238636"/>
         </Style>
-        <Style Selector="Button.primary:pointerover">
-            <Setter Property="Background" Value="#1e7e34"/>
+        <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#2ea043"/>
+            <Setter Property="BorderBrush" Value="#2ea043"/>
+        </Style>
+        <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#1e6e2f"/>
+            <Setter Property="BorderBrush" Value="#1e6e2f"/>
         </Style>
         <Style Selector="Button.accent">
             <Setter Property="Background" Value="#1f6feb"/>
             <Setter Property="BorderBrush" Value="#1f6feb"/>
         </Style>
-        <Style Selector="Button.accent:pointerover">
+        <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="#388bfd"/>
+        </Style>
+        <Style Selector="Button.accent:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#1a5fc7"/>
         </Style>
         <Style Selector="Button.danger">
             <Setter Property="Background" Value="#da3633"/>
             <Setter Property="BorderBrush" Value="#da3633"/>
         </Style>
-        <Style Selector="Button.danger:pointerover">
+        <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="#f85149"/>
+        </Style>
+        <Style Selector="Button.danger:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#b62324"/>
         </Style>
         <Style Selector="Button.nav">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="16,12"/>
         </Style>
-        <Style Selector="Button.nav:pointerover">
+        <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="#21262d"/>
+        </Style>
+        <Style Selector="Button.nav:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#161b22"/>
         </Style>
         <Style Selector="Button.navActive">
             <Setter Property="Background" Value="#1f6feb"/>
@@ -645,9 +664,9 @@
                                                                     Padding="12,8" Margin="2"
                                                                     CornerRadius="4">
                                                                 <Button.Styles>
-                                                                    <Style Selector="Button:pointerover">
+                                                              <!--      <Style Selector="Button:pointerover">
                                                                         <Setter Property="Background" Value="#30363d"/>
-                                                                    </Style>
+                                                                    </Style>-->
                                                                 </Button.Styles>
                                                             </Button>
                                                         </DataTemplate>
