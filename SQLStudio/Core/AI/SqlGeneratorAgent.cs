@@ -368,6 +368,25 @@ public class SqlGeneratorAgent : ISqlGeneratorAgent
                 
                 sb.AppendLine($"    - {column.ColumnName}: {column.DataType}{flagStr}{commentStr}");
             }
+            
+            // 添加样例数据
+            if (table.SampleData != null && table.SampleData.Count > 0)
+            {
+                sb.AppendLine("  Sample Data:");
+                foreach (var sampleRow in table.SampleData)
+                {
+                    var rowValues = new List<string>();
+                    foreach (var column in table.Columns)
+                    {
+                        var value = sampleRow.ContainsKey(column.ColumnName) 
+                            ? sampleRow[column.ColumnName] 
+                            : "NULL";
+                        rowValues.Add($"{column.ColumnName}={value}");
+                    }
+                    sb.AppendLine($"    - {string.Join(", ", rowValues)}");
+                }
+            }
+            
             sb.AppendLine();
         }
         

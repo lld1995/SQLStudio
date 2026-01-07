@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ClickHouse.Client.ADO;
@@ -73,14 +74,69 @@ public class ClickHouseDatabaseConnector : BaseDatabaseConnector
         foreach (var tableName in tables)
         {
             var columns = await GetTableColumnsAsync(tableName, cancellationToken);
+            var sampleData = await GetTableSampleDataAsync(tableName, columns, cancellationToken);
             schema.Tables.Add(new TableInfo
             {
                 TableName = tableName,
-                Columns = columns
+                Columns = columns,
+                SampleData = sampleData
             });
         }
 
         return schema;
+    }
+
+    private async Task<List<Dictionary<string, string>>> GetTableSampleDataAsync(string tableName, List<ColumnInfo> columns, CancellationToken cancellationToken)
+    {
+        var sampleData = new List<Dictionary<string, string>>();
+        
+        if (columns.Count == 0)
+            return sampleData;
+
+        try
+        {
+            // 构建列名列表，对每列使用 substring 限制100字符
+            var columnSelects = columns.Select(col => 
+                $@"CASE 
+                    WHEN {col.ColumnName} IS NULL THEN 'NULL'
+                    WHEN length(toString({col.ColumnName})) > 100 
+                    THEN substring(toString({col.ColumnName}), 1, 100)
+                    ELSE toString({col.ColumnName})
+                END AS {col.ColumnName}").ToList();
+
+            var sql = $@"
+                SELECT {string.Join(", ", columnSelects)}
+                FROM {tableName}
+                ORDER BY rand()
+                LIMIT 2";
+
+            var result = await ExecuteQueryAsync(sql, cancellationToken);
+
+            if (result.Success && result.Data != null)
+            {
+                foreach (DataRow row in result.Data.Rows)
+                {
+                    var rowData = new Dictionary<string, string>();
+                    foreach (var column in columns)
+                    {
+                        var value = row[column.ColumnName]?.ToString() ?? "NULL";
+                        // 确保每列不超过100个字符
+                        if (value.Length > 100)
+                        {
+                            value = value.Substring(0, 100);
+                        }
+                        rowData[column.ColumnName] = value;
+                    }
+                    sampleData.Add(rowData);
+                }
+            }
+        }
+        catch
+        {
+            // 如果查询失败（例如表为空或权限不足），返回空列表
+        }
+
+        return sampleData;
     }
 
     public override async Task<List<string>> GetTablesAsync(CancellationToken cancellationToken = default)

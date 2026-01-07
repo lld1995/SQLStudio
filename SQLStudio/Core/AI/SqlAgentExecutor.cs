@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SQLStudio.Core.Database;
+using SQLStudio.Core.Services;
 
 namespace SQLStudio.Core.AI;
 
@@ -11,6 +12,7 @@ public class SqlAgentExecutor
 {
     private readonly ISqlGeneratorAgent _sqlGenerator;
     private readonly IDatabaseConnector _databaseConnector;
+    private readonly ScenarioKnowledgeService? _knowledgeService;
     private readonly SqlAgentOptions _options;
 
     public event EventHandler<SqlExecutionEventArgs>? OnSqlGenerated;
@@ -25,10 +27,12 @@ public class SqlAgentExecutor
     public SqlAgentExecutor(
         ISqlGeneratorAgent sqlGenerator,
         IDatabaseConnector databaseConnector,
+        ScenarioKnowledgeService? knowledgeService = null,
         SqlAgentOptions? options = null)
     {
         _sqlGenerator = sqlGenerator;
         _databaseConnector = databaseConnector;
+        _knowledgeService = knowledgeService;
         _options = options ?? new SqlAgentOptions();
     }
 
@@ -153,19 +157,67 @@ public class SqlAgentExecutor
             });
         }
 
-        // Step 3: 生成SQL
+        // Step 3: 检索相关场景知识
+        string? knowledgeContext = null;
+        if (_knowledgeService != null)
+        {
+            OnStepChanged?.Invoke(this, new StepChangedEventArgs
+            {
+                Step = ExecutionStep.GeneratingSql,
+                Message = "正在检索相关场景知识..."
+            });
+
+            try
+            {
+                var relevantKnowledge = _knowledgeService.SearchRelevantKnowledge(userQuery, maxResults: 5);
+                if (relevantKnowledge != null && relevantKnowledge.Count > 0)
+                {
+                    knowledgeContext = _knowledgeService.FormatKnowledgeAsContext(relevantKnowledge);
+                }
+            }
+            catch (Exception ex)
+            {
+                // 场景知识检索失败不影响SQL生成，只记录错误
+                System.Diagnostics.Debug.WriteLine($"场景知识检索失败: {ex.Message}");
+            }
+        }
+
+        // Step 4: 生成SQL
         OnStepChanged?.Invoke(this, new StepChangedEventArgs
         {
             Step = ExecutionStep.GeneratingSql,
             Message = $"正在生成SQL（使用 {filteredSchema.Tables.Count} 个表）..."
         });
 
+        // 合并场景知识和额外上下文
+        var combinedContext = CombineContext(additionalContext, knowledgeContext);
+        
+        // 调试信息：记录场景知识检索结果
+        if (knowledgeContext != null)
+        {
+            System.Diagnostics.Debug.WriteLine($"场景知识已检索到，共 {knowledgeContext.Length} 字符");
+            System.Diagnostics.Debug.WriteLine($"场景知识内容预览: {knowledgeContext.Substring(0, Math.Min(100, knowledgeContext.Length))}...");
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine("未检索到相关场景知识");
+        }
+        
+        if (combinedContext != null)
+        {
+            System.Diagnostics.Debug.WriteLine($"最终合并的上下文长度: {combinedContext.Length} 字符");
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine("最终合并的上下文为 null（没有额外上下文和场景知识）");
+        }
+
         var request = new SqlGenerationRequest
         {
             UserQuery = userQuery,
             Schema = filteredSchema,
             DatabaseType = _databaseConnector.DatabaseType,
-            AdditionalContext = additionalContext,
+            AdditionalContext = combinedContext,
             History = conversationHistory
         };
 
@@ -220,7 +272,7 @@ public class SqlAgentExecutor
                     cancellationToken);
             }
 
-            // Step 4: 执行SQL
+            // Step 5: 执行SQL
             OnStepChanged?.Invoke(this, new StepChangedEventArgs
             {
                 Step = ExecutionStep.ExecutingSql,
@@ -313,6 +365,29 @@ public class SqlAgentExecutor
             AnalyzedTables = analysisResult.RequiredTables,
             TableAnalysisReasoning = analysisResult.Reasoning
         };
+    }
+
+    /// <summary>
+    /// 合并额外上下文和场景知识上下文
+    /// </summary>
+    private string? CombineContext(string? additionalContext, string? knowledgeContext)
+    {
+        if (string.IsNullOrWhiteSpace(additionalContext) && string.IsNullOrWhiteSpace(knowledgeContext))
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(additionalContext))
+        {
+            return knowledgeContext;
+        }
+
+        if (string.IsNullOrWhiteSpace(knowledgeContext))
+        {
+            return additionalContext;
+        }
+
+        return $"{additionalContext}\n\n{knowledgeContext}";
     }
 
     public async Task<SqlAgentResult> ExecuteNonQueryAsync(

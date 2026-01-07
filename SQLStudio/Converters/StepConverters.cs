@@ -103,6 +103,7 @@ public class ListToStringConverter : IValueConverter
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        throw new NotImplementedException();
+        // 此转换器仅用于显示，不支持反向转换
+        return null;
     }
 }

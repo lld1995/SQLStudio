@@ -58,6 +58,7 @@ public record TableInfo
     public string TableName { get; init; } = string.Empty;
     public string? TableComment { get; init; }
     public List<ColumnInfo> Columns { get; init; } = new();
+    public List<Dictionary<string, string>> SampleData { get; init; } = new();
 }
 
 public record ColumnInfo

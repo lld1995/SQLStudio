@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.SemanticKernel.ChatCompletion;
 using SQLStudio.Core.AI;
 using SQLStudio.Core.Database;
 
@@ -14,6 +15,7 @@ public static class ServiceConfiguration
     {
         services.AddSingleton<ConnectionManager>();
         services.AddSingleton<SqlAgentService>();
+        services.AddSingleton<ScenarioKnowledgeService>();
         return services;
     }
 }
@@ -68,18 +70,26 @@ public class ConnectionManager
 public class SqlAgentService
 {
     private readonly ConnectionManager _connectionManager;
+    private readonly ScenarioKnowledgeService? _knowledgeService;
     private ISqlGeneratorAgent? _sqlGenerator;
     private AiServiceConfig? _aiConfig;
 
-    public SqlAgentService(ConnectionManager connectionManager)
+    public SqlAgentService(ConnectionManager connectionManager, ScenarioKnowledgeService? knowledgeService = null)
     {
         _connectionManager = connectionManager;
+        _knowledgeService = knowledgeService;
     }
 
     public void ConfigureAi(AiServiceConfig config)
     {
         _aiConfig = config;
         _sqlGenerator = AiServiceFactory.CreateSqlGenerator(config);
+    }
+
+    public IChatCompletionService? GetChatService()
+    {
+        if (_aiConfig == null) return null;
+        return AiServiceFactory.CreateChatCompletionService(_aiConfig);
     }
 
     public SqlAgentExecutor CreateExecutor(string connectionId, SqlAgentOptions? options = null)
@@ -95,7 +105,7 @@ public class SqlAgentService
             throw new InvalidOperationException($"Connection '{connectionId}' not found.");
         }
 
-        return new SqlAgentExecutor(_sqlGenerator, connector, options);
+        return new SqlAgentExecutor(_sqlGenerator, connector, _knowledgeService, options);
     }
 
     public async Task<SqlAgentResult> ExecuteQueryAsync(

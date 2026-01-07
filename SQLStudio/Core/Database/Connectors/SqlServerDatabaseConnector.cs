@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
@@ -80,14 +81,68 @@ public class SqlServerDatabaseConnector : BaseDatabaseConnector
         foreach (var tableName in tables)
         {
             var columns = await GetTableColumnsAsync(tableName, cancellationToken);
+            var sampleData = await GetTableSampleDataAsync(tableName, columns, cancellationToken);
             schema.Tables.Add(new TableInfo
             {
                 TableName = tableName,
-                Columns = columns
+                Columns = columns,
+                SampleData = sampleData
             });
         }
 
         return schema;
+    }
+
+    private async Task<List<Dictionary<string, string>>> GetTableSampleDataAsync(string tableName, List<ColumnInfo> columns, CancellationToken cancellationToken)
+    {
+        var sampleData = new List<Dictionary<string, string>>();
+        
+        if (columns.Count == 0)
+            return sampleData;
+
+        try
+        {
+            // 构建列名列表，对每列使用 LEFT 或 SUBSTRING 限制100字符
+            var columnSelects = columns.Select(col => 
+                $@"CASE 
+                    WHEN [{col.ColumnName}] IS NULL THEN 'NULL'
+                    WHEN LEN(CAST([{col.ColumnName}] AS NVARCHAR(MAX))) > 100 
+                    THEN LEFT(CAST([{col.ColumnName}] AS NVARCHAR(MAX)), 100)
+                    ELSE CAST([{col.ColumnName}] AS NVARCHAR(MAX))
+                END AS [{col.ColumnName}]").ToList();
+
+            var sql = $@"
+                SELECT TOP 2 {string.Join(", ", columnSelects)}
+                FROM [{tableName}]
+                ORDER BY NEWID()";
+
+            var result = await ExecuteQueryAsync(sql, cancellationToken);
+
+            if (result.Success && result.Data != null)
+            {
+                foreach (DataRow row in result.Data.Rows)
+                {
+                    var rowData = new Dictionary<string, string>();
+                    foreach (var column in columns)
+                    {
+                        var value = row[column.ColumnName]?.ToString() ?? "NULL";
+                        // 确保每列不超过100个字符
+                        if (value.Length > 100)
+                        {
+                            value = value.Substring(0, 100);
+                        }
+                        rowData[column.ColumnName] = value;
+                    }
+                    sampleData.Add(rowData);
+                }
+            }
+        }
+        catch
+        {
+            // 如果查询失败（例如表为空或权限不足），返回空列表
+        }
+
+        return sampleData;
     }
 
     public override async Task<List<string>> GetTablesAsync(CancellationToken cancellationToken = default)
