@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Text;
+using System.Threading;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace SQLStudio.ViewModels;
@@ -81,19 +84,90 @@ public partial class ChatMessage : ObservableObject
         }
     }
 
+    // 节流相关字段
+    private readonly StringBuilder _contentBuffer = new();
+    private readonly StringBuilder _tableAnalysisBuffer = new();
+    private readonly StringBuilder _sqlGenerationBuffer = new();
+    private Timer? _flushTimer;
+    private readonly object _bufferLock = new();
+    private const int FlushIntervalMs = 50; // 50ms刷新一次UI
+
     public void AppendContent(string token)
     {
-        Content += token;
+        lock (_bufferLock)
+        {
+            _contentBuffer.Append(token);
+            EnsureFlushTimer();
+        }
     }
 
     public void AppendTableAnalysis(string token)
     {
-        TableAnalysisContent += token;
+        lock (_bufferLock)
+        {
+            _tableAnalysisBuffer.Append(token);
+            EnsureFlushTimer();
+        }
     }
 
     public void AppendSqlGeneration(string token)
     {
-        SqlGenerationContent += token;
+        lock (_bufferLock)
+        {
+            _sqlGenerationBuffer.Append(token);
+            EnsureFlushTimer();
+        }
+    }
+
+    private void EnsureFlushTimer()
+    {
+        _flushTimer ??= new Timer(_ => FlushBuffers(), null, FlushIntervalMs, Timeout.Infinite);
+    }
+
+    private void FlushBuffers()
+    {
+        string contentToAdd;
+        string tableAnalysisToAdd;
+        string sqlGenerationToAdd;
+
+        lock (_bufferLock)
+        {
+            contentToAdd = _contentBuffer.ToString();
+            tableAnalysisToAdd = _tableAnalysisBuffer.ToString();
+            sqlGenerationToAdd = _sqlGenerationBuffer.ToString();
+            
+            _contentBuffer.Clear();
+            _tableAnalysisBuffer.Clear();
+            _sqlGenerationBuffer.Clear();
+            
+            _flushTimer?.Dispose();
+            _flushTimer = null;
+        }
+
+        if (string.IsNullOrEmpty(contentToAdd) && 
+            string.IsNullOrEmpty(tableAnalysisToAdd) && 
+            string.IsNullOrEmpty(sqlGenerationToAdd))
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!string.IsNullOrEmpty(contentToAdd))
+                Content += contentToAdd;
+            if (!string.IsNullOrEmpty(tableAnalysisToAdd))
+                TableAnalysisContent += tableAnalysisToAdd;
+            if (!string.IsNullOrEmpty(sqlGenerationToAdd))
+                SqlGenerationContent += sqlGenerationToAdd;
+        });
+    }
+
+    /// <summary>
+    /// 强制刷新所有缓冲区（在流式输出结束时调用）
+    /// </summary>
+    public void FlushAllBuffers()
+    {
+        FlushBuffers();
     }
 }
 

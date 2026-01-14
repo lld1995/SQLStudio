@@ -302,10 +302,8 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Status & Knowledge Management -->
+                <!-- Status -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
-                    <Button Content="📚 场景知识" Command="{Binding ShowKnowledgeManagementCommand}" 
-                            Padding="12,8" FontSize="12" Classes="nav"/>
                     <Border Width="8" Height="8" CornerRadius="4"
                             Background="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#3fb950;#f85149'}"/>
                     <TextBlock Text="{Binding IsConnected, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Connected;Disconnected'}" 
@@ -473,6 +471,20 @@
                                     <TextBlock Text="Max Retries" FontSize="12" Foreground="#8b949e"/>
                                     <NumericUpDown Value="{Binding MaxRetries}" Minimum="1" Maximum="10" 
                                                    FormatString="0" ShowButtonSpinner="True" Width="120" HorizontalAlignment="Left"/>
+                                </StackPanel>
+                                
+                                <Separator Background="#30363d" Margin="0,8"/>
+                                
+                                <TextBlock Text="Knowledge Base (Optional)" FontWeight="SemiBold" FontSize="14"/>
+                                
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Knowledge API URL" FontSize="12" Foreground="#8b949e"/>
+                                    <TextBox Watermark="http://your-knowledge-api.com" Text="{Binding KnowledgeApiUrl}"/>
+                                </StackPanel>
+                                
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Knowledge DB IDs (comma separated)" FontSize="12" Foreground="#8b949e"/>
+                                    <TextBox Watermark="id1, id2, id3" Text="{Binding KnowledgeDbIds}"/>
                                 </StackPanel>
                             </StackPanel>
                         </Border>
@@ -909,139 +921,6 @@
                 </TabControl>
             </Grid>
         </Grid>
-
-        <!-- Scenario Knowledge Management Dialog Overlay -->
-        <Border Grid.Row="1" IsVisible="{Binding IsKnowledgeManagementVisible}"
-                Background="#80000000" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-            <Border Background="#161b22" CornerRadius="12" Padding="0"
-                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                    MinWidth="900" MaxWidth="1200" MaxHeight="700"
-                    BorderBrush="#30363d" BorderThickness="1">
-                <Grid RowDefinitions="Auto,*,Auto">
-                    <!-- Header -->
-                    <Border Grid.Row="0" Background="#21262d" CornerRadius="12,12,0,0" Padding="20,16">
-                        <Grid ColumnDefinitions="Auto,*,Auto">
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
-                                <TextBlock Text="📚" FontSize="18"/>
-                                <TextBlock Text="场景知识管理" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center"/>
-                            </StackPanel>
-                            <Button Grid.Column="2" Content="✕" Command="{Binding CloseKnowledgeManagementCommand}"
-                                    Background="Transparent" BorderThickness="0" Padding="8,4" FontSize="16"/>
-                        </Grid>
-                    </Border>
-                    
-                    <!-- Content -->
-                    <Grid Grid.Row="1" ColumnDefinitions="300,*" Margin="16">
-                        <!-- Left: Knowledge List -->
-                        <Border Grid.Column="0" Background="#21262d" CornerRadius="8" Padding="12" Margin="0,0,12,0">
-                            <Grid RowDefinitions="Auto,*,Auto">
-                                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,12">
-                                    <TextBlock Text="知识列表" FontWeight="SemiBold" FontSize="14"/>
-                                    <TextBlock Text="{Binding KnowledgeList.Count, StringFormat='({0})'}" 
-                                               FontSize="12" Foreground="#8b949e" VerticalAlignment="Center"/>
-                                </StackPanel>
-                                
-                                <ListBox Grid.Row="1" ItemsSource="{Binding KnowledgeList}" 
-                                         SelectedItem="{Binding SelectedKnowledge}"
-                                         Margin="0,0,0,12">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Padding="12,10" CornerRadius="6" Margin="0,2">
-                                                <StackPanel Spacing="4">
-                                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13" TextWrapping="Wrap"/>
-                                                    <TextBlock Text="{Binding Content}" FontSize="11" Foreground="#8b949e" 
-                                                               TextWrapping="Wrap" MaxHeight="40" TextTrimming="CharacterEllipsis"/>
-                                                    <TextBlock FontSize="10" Foreground="#6e7681" Margin="0,4,0,0">
-                                                        <Run Text="关键词: "/>
-                                                        <Run Text="{Binding Keywords, Converter={x:Static conv:ListToStringConverter.Instance}, Mode=OneWay}"/>
-                                                    </TextBlock>
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                                
-                                <Button Grid.Row="2" Content="+ 新建" Command="{Binding NewKnowledgeCommand}"
-                                        Classes="primary" HorizontalAlignment="Stretch" Padding="12,10"/>
-                            </Grid>
-                        </Border>
-                        
-                        <!-- Right: Edit Form -->
-                        <Border Grid.Column="1" Background="#21262d" CornerRadius="8" Padding="20">
-                            <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
-                                <TextBlock Grid.Row="0" 
-                                           Text="{Binding IsEditingKnowledge, Converter={StaticResource BoolToStringConverter}, ConverterParameter='编辑场景知识;新建场景知识'}" 
-                                           FontWeight="SemiBold" FontSize="15" Margin="0,0,0,20"/>
-                                
-                                <StackPanel Grid.Row="1" Spacing="4" Margin="0,0,0,16">
-                                    <TextBlock Text="标题 *" FontSize="12" Foreground="#8b949e"/>
-                                    <TextBox Text="{Binding KnowledgeTitle}" Watermark="输入场景知识标题" Padding="12,10"/>
-                                </StackPanel>
-                                
-                                <StackPanel Grid.Row="2" Spacing="4" Margin="0,0,0,16">
-                                    <TextBlock Text="内容 *" FontSize="12" Foreground="#8b949e"/>
-                                    <TextBox Text="{Binding KnowledgeContent}" 
-                                             AcceptsReturn="True" TextWrapping="Wrap"
-                                             Watermark="输入场景知识内容（支持多行）" 
-                                             MinHeight="200" Padding="12,10"/>
-                                </StackPanel>
-                                
-                                <StackPanel Grid.Row="3" Spacing="4" Margin="0,0,0,16">
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <StackPanel Grid.Column="0" Spacing="4">
-                                            <TextBlock Text="关键词（用逗号分隔）" FontSize="12" Foreground="#8b949e"/>
-                                            <TextBox Text="{Binding KnowledgeKeywords}" 
-                                                     Watermark="例如: 用户,订单,查询" Padding="12,10"/>
-                                        </StackPanel>
-                                        <Button Grid.Column="1" Content="🤖 自动提取" 
-                                                Command="{Binding ExtractKeywordsCommand}"
-                                                IsEnabled="{Binding !IsExtractingKeywords}"
-                                                Classes="accent" Padding="16,10" Margin="12,24,0,0"
-                                                VerticalAlignment="Top"/>
-                                    </Grid>
-                                    <TextBlock FontSize="11" Foreground="#6e7681" Margin="0,4,0,0">
-                                        <Run Text="提示: 关键词用于匹配用户提问，多个关键词用逗号分隔。点击"/>
-                                        <Run Text="自动提取" FontWeight="SemiBold"/>
-                                        <Run Text="按钮可让AI根据标题和内容自动生成关键词"/>
-                                    </TextBlock>
-                                </StackPanel>
-                                
-                                <!-- 按钮区域 -->
-                                <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto">
-                                    <!-- 左侧：删除按钮（仅在编辑现有项时显示） -->
-                                    <Button Grid.Column="0" Content="🗑️ 删除" 
-                                            Command="{Binding DeleteKnowledgeCommand}" 
-                                            CommandParameter="{Binding SelectedKnowledge}"
-                                            IsEnabled="{Binding SelectedKnowledge, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                            IsVisible="{Binding IsEditingKnowledge}"
-                                            HorizontalAlignment="Left"
-                                            Classes="danger" Padding="16,10"/>
-                                    
-                                    <!-- 中间：占位 -->
-                                    <Border Grid.Column="1"/>
-                                    
-                                    <!-- 右侧：操作按钮组 -->
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
-                                        <Button Content="取消" Command="{Binding NewKnowledgeCommand}" 
-                                                IsVisible="{Binding IsEditingKnowledge}"
-                                                Padding="16,10"/>
-                                        <Button Content="{Binding IsEditingKnowledge, Converter={StaticResource BoolToStringConverter}, ConverterParameter='保存更改;创建知识'}" 
-                                                Command="{Binding SaveKnowledgeCommand}" 
-                                                Classes="primary" Padding="20,10"/>
-                                    </StackPanel>
-                                </Grid>
-                            </Grid>
-                        </Border>
-                    </Grid>
-                    
-                    <!-- Footer -->
-                    <Border Grid.Row="2" Background="#21262d" CornerRadius="0,0,12,12" Padding="16,12">
-                        <TextBlock Text="场景知识会在生成SQL时自动检索并使用，帮助AI更好地理解您的业务场景" 
-                                   FontSize="12" Foreground="#8b949e" HorizontalAlignment="Center"/>
-                    </Border>
-                </Grid>
-            </Border>
-        </Border>
 
         <!-- Table Structure Dialog Overlay -->
         <Border Grid.Row="1" IsVisible="{Binding IsTableStructureVisible}"

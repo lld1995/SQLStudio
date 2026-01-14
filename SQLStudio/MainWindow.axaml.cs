@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,6 +14,10 @@ namespace SQLStudio
 {
     public partial class MainWindow : Window
     {
+        private ChatMessage? _lastTrackedMessage;
+        private bool _isNearBottom = true;
+        private const double ScrollThreshold = 50; // 距离底部多少像素内认为在底部
+
         public MainWindow()
         {
             InitializeComponent();
@@ -20,6 +25,69 @@ namespace SQLStudio
             DataContext = vm;
 
             vm.PropertyChanged += ViewModelOnPropertyChanged;
+            vm.ChatMessages.CollectionChanged += ChatMessagesOnCollectionChanged;
+            
+            // 监听ScrollViewer滚动事件
+            ChatScrollViewer.ScrollChanged += OnChatScrollViewerScrollChanged;
+        }
+
+        private void OnChatScrollViewerScrollChanged(object? sender, ScrollChangedEventArgs e)
+        {
+            if (sender is not ScrollViewer sv) return;
+            
+            // 检查是否在底部附近
+            _isNearBottom = sv.Offset.Y >= sv.Extent.Height - sv.Viewport.Height - ScrollThreshold;
+        }
+
+        private void ChatMessagesOnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            // 新消息添加时
+            if (e.Action == NotifyCollectionChangedAction.Add && e.NewItems != null)
+            {
+                // 取消跟踪旧的消息
+                if (_lastTrackedMessage != null)
+                {
+                    _lastTrackedMessage.PropertyChanged -= OnLastMessagePropertyChanged;
+                }
+
+                // 跟踪新消息
+                _lastTrackedMessage = e.NewItems[^1] as ChatMessage;
+                if (_lastTrackedMessage != null)
+                {
+                    _lastTrackedMessage.PropertyChanged += OnLastMessagePropertyChanged;
+                }
+
+                // 添加新消息时滚动到底部
+                ScrollToBottomIfNeeded();
+            }
+            else if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                // 清空时取消跟踪
+                if (_lastTrackedMessage != null)
+                {
+                    _lastTrackedMessage.PropertyChanged -= OnLastMessagePropertyChanged;
+                    _lastTrackedMessage = null;
+                }
+            }
+        }
+
+        private void OnLastMessagePropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            // 当最后一条消息的内容变化时（流式输出），滚动到底部
+            if (e.PropertyName is nameof(ChatMessage.Content) or nameof(ChatMessage.SqlGenerationContent) or nameof(ChatMessage.TableAnalysisContent))
+            {
+                ScrollToBottomIfNeeded();
+            }
+        }
+
+        private void ScrollToBottomIfNeeded()
+        {
+            if (!_isNearBottom) return;
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                ChatScrollViewer.ScrollToEnd();
+            }, DispatcherPriority.Background);
         }
 
         private void ViewModelOnPropertyChanged(object? sender, PropertyChangedEventArgs e)

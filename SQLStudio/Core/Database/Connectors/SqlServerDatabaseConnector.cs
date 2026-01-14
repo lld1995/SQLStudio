@@ -79,21 +79,18 @@ public class SqlServerDatabaseConnector : BaseDatabaseConnector
 
         var tables = await GetTablesAsync(cancellationToken).ConfigureAwait(false);
         
-        // 并行获取所有表的结构信息以提高性能
-        var tasks = tables.Select(async tableName =>
+        // 顺序获取表结构信息（数据库连接不支持并发查询）
+        foreach (var tableName in tables)
         {
             var columns = await GetTableColumnsAsync(tableName, cancellationToken).ConfigureAwait(false);
             var sampleData = await GetTableSampleDataAsync(tableName, columns, cancellationToken).ConfigureAwait(false);
-            return new TableInfo
+            schema.Tables.Add(new TableInfo
             {
                 TableName = tableName,
                 Columns = columns,
                 SampleData = sampleData
-            };
-        });
-
-        var tableInfos = await Task.WhenAll(tasks).ConfigureAwait(false);
-        schema.Tables.AddRange(tableInfos);
+            });
+        }
 
         return schema;
     }
@@ -154,7 +151,7 @@ public class SqlServerDatabaseConnector : BaseDatabaseConnector
     {
         var tables = new List<string>();
         var result = await ExecuteQueryAsync(
-            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'",
+            "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_SCHEMA = 'dbo'",
             cancellationToken);
 
         if (result.Success && result.Data != null)
@@ -184,11 +181,12 @@ public class SqlServerDatabaseConnector : BaseDatabaseConnector
                 SELECT ku.COLUMN_NAME
                 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
                 JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE ku ON tc.CONSTRAINT_NAME = ku.CONSTRAINT_NAME
-                WHERE tc.TABLE_NAME = '{tableName}' AND tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
+                    AND tc.TABLE_SCHEMA = ku.TABLE_SCHEMA
+                WHERE tc.TABLE_NAME = '{tableName}' AND tc.TABLE_SCHEMA = 'dbo' AND tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
             ) pk ON c.COLUMN_NAME = pk.COLUMN_NAME
-            LEFT JOIN sys.extended_properties ep ON ep.major_id = OBJECT_ID(c.TABLE_NAME) 
+            LEFT JOIN sys.extended_properties ep ON ep.major_id = OBJECT_ID('dbo.' + c.TABLE_NAME) 
                 AND ep.minor_id = c.ORDINAL_POSITION AND ep.name = 'MS_Description'
-            WHERE c.TABLE_NAME = '{tableName}'
+            WHERE c.TABLE_NAME = '{tableName}' AND c.TABLE_SCHEMA = 'dbo'
             ORDER BY c.ORDINAL_POSITION";
 
         var result = await ExecuteQueryAsync(sql, cancellationToken);

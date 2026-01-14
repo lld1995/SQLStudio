@@ -36,7 +36,7 @@ public partial class MainViewModel : ObservableObject
     private readonly ConnectionManager _connectionManager;
     private readonly SqlAgentService _sqlAgentService;
     private readonly AppSettingsService _settingsService;
-    private readonly ScenarioKnowledgeService _knowledgeService;
+    private readonly KnowledgeRetrievalService _knowledgeService;
     private CancellationTokenSource? _chatCancellationTokenSource;
     
     private const string DefaultConnectionId = "default";
@@ -196,39 +196,20 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<string> FilteredTables { get; } = new();
 
-    // 场景知识管理相关属性
+    // 知识库配置相关属性
     [ObservableProperty]
-    private bool _isKnowledgeManagementVisible;
+    private string _knowledgeApiUrl = "";
 
     [ObservableProperty]
-    private ObservableCollection<ScenarioKnowledge> _knowledgeList = new();
-
-    [ObservableProperty]
-    private ScenarioKnowledge? _selectedKnowledge;
-
-    [ObservableProperty]
-    private string _knowledgeTitle = "";
-
-    [ObservableProperty]
-    private string _knowledgeContent = "";
-
-    [ObservableProperty]
-    private string _knowledgeKeywords = "";
-
-    [ObservableProperty]
-    private bool _isEditingKnowledge;
-
-    [ObservableProperty]
-    private bool _isExtractingKeywords;
+    private string _knowledgeDbIds = "";
 
     public MainViewModel()
     {
         _connectionManager = new ConnectionManager();
-        _knowledgeService = new ScenarioKnowledgeService();
+        _knowledgeService = new KnowledgeRetrievalService();
         _sqlAgentService = new SqlAgentService(_connectionManager, _knowledgeService);
         _settingsService = new AppSettingsService();
         LoadSettings();
-        LoadKnowledgeList();
     }
 
     private void LoadSettings()
@@ -245,6 +226,11 @@ public partial class MainViewModel : ObservableObject
         // AI settings
         _aiApiKey = settings.Ai.ApiKey;
         _aiEndpoint = settings.Ai.Endpoint;
+        
+        // Knowledge settings
+        _knowledgeApiUrl = settings.Knowledge.ApiUrl;
+        _knowledgeDbIds = string.Join(",", settings.Knowledge.KnowledgeDbIds);
+        _knowledgeService.Configure(settings.Knowledge);
         
         // Add saved model to collection so it can be selected
         if (!string.IsNullOrEmpty(settings.Ai.SelectedModel))
@@ -265,6 +251,12 @@ public partial class MainViewModel : ObservableObject
 
     private void SaveSettings()
     {
+        var knowledgeDbIdsList = KnowledgeDbIds
+            .Split(new[] { ',', '，', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(id => id.Trim())
+            .Where(id => !string.IsNullOrEmpty(id))
+            .ToList();
+
         var settings = new AppSettings
         {
             Database = new DatabaseSettings
@@ -281,9 +273,27 @@ public partial class MainViewModel : ObservableObject
                 ApiKey = AiApiKey,
                 Endpoint = AiEndpoint,
                 SelectedModel = SelectedAiModel
+            },
+            Knowledge = new KnowledgeSettings
+            {
+                ApiUrl = KnowledgeApiUrl,
+                KnowledgeDbIds = knowledgeDbIdsList
             }
         };
         _settingsService.Save(settings);
+        
+        // 同时更新知识库服务配置
+        _knowledgeService.Configure(settings.Knowledge);
+    }
+
+    partial void OnKnowledgeApiUrlChanged(string value)
+    {
+        SaveSettings();
+    }
+
+    partial void OnKnowledgeDbIdsChanged(string value)
+    {
+        SaveSettings();
     }
 
     partial void OnSelectedDatabaseTypeChanged(DatabaseType value)
@@ -471,7 +481,7 @@ public partial class MainViewModel : ObservableObject
             var tables = await connector.GetTablesAsync();
             
             Tables.Clear();
-            foreach (var table in tables)
+            foreach (var table in tables.Distinct())
             {
                 Tables.Add(table);
             }
@@ -757,20 +767,18 @@ public partial class MainViewModel : ObservableObject
             };
 
             // 流式输出事件 - 区分表分析和SQL生成阶段
+            // 注意：ChatMessage内部已实现节流机制，无需在此处使用Dispatcher
             executor.OnStreaming += (_, e) =>
             {
-                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                if (e.Phase == "TableAnalysis")
                 {
-                    if (e.Phase == "TableAnalysis")
-                    {
-                        aiMessage.AppendTableAnalysis(e.Token);
-                    }
-                    else
-                    {
-                        aiMessage.AppendSqlGeneration(e.Token);
-                        aiMessage.AppendContent(e.Token);
-                    }
-                });
+                    aiMessage.AppendTableAnalysis(e.Token);
+                }
+                else
+                {
+                    aiMessage.AppendSqlGeneration(e.Token);
+                    aiMessage.AppendContent(e.Token);
+                }
             };
 
             executor.OnSqlGenerated += (_, e) =>
@@ -806,6 +814,8 @@ public partial class MainViewModel : ObservableObject
 
             var result = await executor.ExecuteAsync(userQuery, null, conversationHistory, cancellationToken, specifiedTables);
 
+            // 确保所有缓冲的内容都刷新到UI
+            aiMessage.FlushAllBuffers();
             aiMessage.IsStreaming = false;
 
             if (result.Success)
@@ -826,6 +836,7 @@ public partial class MainViewModel : ObservableObject
         catch (OperationCanceledException)
         {
             StatusMessage = "Generation stopped";
+            aiMessage.FlushAllBuffers();
             aiMessage.IsStreaming = false;
             if (string.IsNullOrEmpty(aiMessage.Content))
             {
@@ -839,6 +850,7 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             StatusMessage = $"Error: {ex.Message}";
+            aiMessage.FlushAllBuffers();
             aiMessage.IsStreaming = false;
             aiMessage.IsError = true;
             aiMessage.Content = $"Error: {ex.Message}";
@@ -1161,282 +1173,6 @@ public partial class MainViewModel : ObservableObject
     private void AppendLog(string message)
     {
         ExecutionLog += $"[{DateTime.Now:HH:mm:ss}] {message}\n";
-    }
-
-    // 场景知识管理方法
-    private void LoadKnowledgeList()
-    {
-        KnowledgeList.Clear();
-        var allKnowledge = _knowledgeService.GetAll();
-        foreach (var knowledge in allKnowledge)
-        {
-            KnowledgeList.Add(knowledge);
-        }
-    }
-
-    [RelayCommand]
-    private void ShowKnowledgeManagement()
-    {
-        IsKnowledgeManagementVisible = true;
-        LoadKnowledgeList();
-    }
-
-    [RelayCommand]
-    private void CloseKnowledgeManagement()
-    {
-        IsKnowledgeManagementVisible = false;
-        ClearKnowledgeForm();
-    }
-
-    [RelayCommand]
-    private void NewKnowledge()
-    {
-        ClearKnowledgeForm();
-        IsEditingKnowledge = false;
-        SelectedKnowledge = null;
-    }
-
-    [RelayCommand]
-    private void EditKnowledge(ScenarioKnowledge? knowledge)
-    {
-        if (knowledge == null) return;
-
-        SelectedKnowledge = knowledge;
-        KnowledgeTitle = knowledge.Title;
-        KnowledgeContent = knowledge.Content;
-        KnowledgeKeywords = string.Join(", ", knowledge.Keywords ?? new List<string>());
-        IsEditingKnowledge = true;
-    }
-
-    [RelayCommand]
-    private void SaveKnowledge()
-    {
-        if (string.IsNullOrWhiteSpace(KnowledgeTitle) || string.IsNullOrWhiteSpace(KnowledgeContent))
-        {
-            StatusMessage = "标题和内容不能为空";
-            return;
-        }
-
-        var keywords = KnowledgeKeywords
-            .Split(new[] { ',', '，', ' ' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(k => k.Trim())
-            .Where(k => !string.IsNullOrEmpty(k))
-            .ToList();
-
-        if (IsEditingKnowledge && SelectedKnowledge != null)
-        {
-            // 更新现有知识
-            var updated = new ScenarioKnowledge
-            {
-                Id = SelectedKnowledge.Id,
-                Title = KnowledgeTitle,
-                Content = KnowledgeContent,
-                Keywords = keywords,
-                CreatedAt = SelectedKnowledge.CreatedAt
-            };
-            if (_knowledgeService.Update(updated))
-            {
-                StatusMessage = "场景知识已更新";
-                LoadKnowledgeList();
-                ClearKnowledgeForm();
-            }
-            else
-            {
-                StatusMessage = "更新失败";
-            }
-        }
-        else
-        {
-            // 添加新知识
-            var newKnowledge = new ScenarioKnowledge
-            {
-                Title = KnowledgeTitle,
-                Content = KnowledgeContent,
-                Keywords = keywords
-            };
-            _knowledgeService.Add(newKnowledge);
-            StatusMessage = "场景知识已添加";
-            LoadKnowledgeList();
-            ClearKnowledgeForm();
-        }
-    }
-
-    [RelayCommand]
-    private void DeleteKnowledge(ScenarioKnowledge? knowledge)
-    {
-        if (knowledge == null) return;
-
-        if (_knowledgeService.Delete(knowledge.Id))
-        {
-            StatusMessage = "场景知识已删除";
-            LoadKnowledgeList();
-            if (SelectedKnowledge?.Id == knowledge.Id)
-            {
-                ClearKnowledgeForm();
-            }
-        }
-        else
-        {
-            StatusMessage = "删除失败";
-        }
-    }
-
-    private void ClearKnowledgeForm()
-    {
-        KnowledgeTitle = "";
-        KnowledgeContent = "";
-        KnowledgeKeywords = "";
-        IsEditingKnowledge = false;
-        SelectedKnowledge = null;
-    }
-
-    partial void OnSelectedKnowledgeChanged(ScenarioKnowledge? value)
-    {
-        if (value != null)
-        {
-            // 当从列表选择知识时，自动进入编辑模式
-            KnowledgeTitle = value.Title;
-            KnowledgeContent = value.Content;
-            KnowledgeKeywords = string.Join(", ", value.Keywords ?? new List<string>());
-            IsEditingKnowledge = true;
-        }
-        else
-        {
-            // 当取消选择时，如果不是新建模式，清空表单
-            if (!IsEditingKnowledge)
-            {
-                ClearKnowledgeForm();
-            }
-        }
-    }
-
-    [RelayCommand]
-    private async Task ExtractKeywordsAsync()
-    {
-        if (string.IsNullOrWhiteSpace(KnowledgeTitle) && string.IsNullOrWhiteSpace(KnowledgeContent))
-        {
-            StatusMessage = "请先输入标题或内容";
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(SelectedAiModel))
-        {
-            StatusMessage = "请先配置AI模型";
-            return;
-        }
-
-        try
-        {
-            IsExtractingKeywords = true;
-            StatusMessage = "正在提取关键词...";
-
-            var chatService = _sqlAgentService.GetChatService();
-            if (chatService == null)
-            {
-                StatusMessage = "AI服务未配置";
-                return;
-            }
-
-            var prompt = $@"请根据以下场景知识的标题和内容，提取3-8个关键词。关键词应该：
-1. 能够准确反映场景知识的核心内容
-2. 便于用户通过提问匹配到该场景知识
-3. 使用中文，简洁明了
-4. 用逗号分隔，不要包含其他文字
-
-标题：{KnowledgeTitle}
-内容：{KnowledgeContent}
-
-请只返回关键词，用逗号分隔，例如：用户,订单,查询,统计";
-
-            var chatHistory = new ChatHistory();
-            chatHistory.AddSystemMessage("你是一个关键词提取专家，能够从文本中提取准确的关键词。");
-            chatHistory.AddUserMessage(prompt);
-
-            var settings = new PromptExecutionSettings
-            {
-                ExtensionData = new Dictionary<string, object>
-                {
-                    ["temperature"] = 0.3,
-                    ["max_tokens"] = 200
-                }
-            };
-
-            var response = await chatService.GetChatMessageContentsAsync(chatHistory, settings);
-            var keywords = response.FirstOrDefault()?.Content?.Trim() ?? "";
-
-            // 移除think标签及其内容（包括多行）
-            keywords = System.Text.RegularExpressions.Regex.Replace(
-                keywords, 
-                @"<think>.*?</think>", 
-                "", 
-                System.Text.RegularExpressions.RegexOptions.Singleline | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-            // 移除其他可能的XML/HTML标签
-            keywords = System.Text.RegularExpressions.Regex.Replace(
-                keywords, 
-                @"<[^>]+>", 
-                "");
-
-            // 移除markdown格式标记
-            keywords = keywords.Replace("**", "").Replace("*", "")
-                             .Replace("__", "").Replace("_", "")
-                             .Replace("```", "").Replace("`", "");
-
-            // 移除常见的标签文字
-            keywords = keywords.Replace("关键词：", "").Replace("关键词:", "")
-                             .Replace("关键词是：", "").Replace("关键词是:", "")
-                             .Replace("提取的关键词：", "").Replace("提取的关键词:", "")
-                             .Replace("关键词列表：", "").Replace("关键词列表:", "");
-
-            // 移除代码块标记
-            keywords = keywords.Replace("```", "").Replace("`", "");
-
-            // 如果响应包含其他文字，尝试提取关键词部分（在冒号或换行后）
-            if (keywords.Contains("：") || keywords.Contains(":"))
-            {
-                var parts = keywords.Split(new[] { '：', ':' }, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length > 1)
-                {
-                    keywords = parts.Last().Trim();
-                }
-            }
-
-            // 如果包含换行，取第一行（通常是关键词）
-            if (keywords.Contains("\n"))
-            {
-                var lines = keywords.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
-                keywords = lines.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l) && 
-                    !l.Contains("关键词") && 
-                    !l.Contains("提取") &&
-                    !l.Contains("：") &&
-                    !l.Contains(":"))?.Trim() ?? lines.FirstOrDefault()?.Trim() ?? "";
-            }
-
-            // 移除可能的引号、括号等
-            keywords = keywords.Trim('"', '\'', '`', '（', '）', '(', ')', '[', ']', '【', '】');
-
-            // 移除多余的空格和标点
-            keywords = System.Text.RegularExpressions.Regex.Replace(keywords, @"\s+", " ");
-            keywords = keywords.Trim(' ', '，', ',', '。', '.', '；', ';');
-
-            if (!string.IsNullOrWhiteSpace(keywords))
-            {
-                KnowledgeKeywords = keywords;
-                StatusMessage = "关键词提取成功";
-            }
-            else
-            {
-                StatusMessage = "未能提取到关键词，请手动输入";
-            }
-        }
-        catch (Exception ex)
-        {
-            StatusMessage = $"提取关键词失败: {ex.Message}";
-        }
-        finally
-        {
-            IsExtractingKeywords = false;
-        }
     }
 
     // 问答页面相关方法

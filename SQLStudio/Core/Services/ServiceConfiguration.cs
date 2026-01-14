@@ -15,7 +15,7 @@ public static class ServiceConfiguration
     {
         services.AddSingleton<ConnectionManager>();
         services.AddSingleton<SqlAgentService>();
-        services.AddSingleton<ScenarioKnowledgeService>();
+        services.AddSingleton<KnowledgeRetrievalService>();
         return services;
     }
 }
@@ -70,14 +70,19 @@ public class ConnectionManager
 public class SqlAgentService
 {
     private readonly ConnectionManager _connectionManager;
-    private readonly ScenarioKnowledgeService? _knowledgeService;
+    private readonly KnowledgeRetrievalService? _knowledgeService;
     private ISqlGeneratorAgent? _sqlGenerator;
     private AiServiceConfig? _aiConfig;
 
-    public SqlAgentService(ConnectionManager connectionManager, ScenarioKnowledgeService? knowledgeService = null)
+    public SqlAgentService(ConnectionManager connectionManager, KnowledgeRetrievalService? knowledgeService = null)
     {
         _connectionManager = connectionManager;
         _knowledgeService = knowledgeService;
+    }
+
+    public void ConfigureKnowledge(KnowledgeSettings settings)
+    {
+        _knowledgeService?.Configure(settings);
     }
 
     public void ConfigureAi(AiServiceConfig config)

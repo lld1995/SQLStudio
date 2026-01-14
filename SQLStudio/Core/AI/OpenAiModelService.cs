@@ -44,9 +44,9 @@ public class OpenAiModelService
             
             models.Sort();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            
+            throw;
         }
         
         return models;

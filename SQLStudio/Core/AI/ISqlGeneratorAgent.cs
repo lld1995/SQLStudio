@@ -68,6 +68,7 @@ public record TableAnalysisRequest
     public required string UserQuery { get; init; }
     public required DatabaseSchema FullSchema { get; init; }
     public required string DatabaseType { get; init; }
+    public string? AdditionalContext { get; init; }
 }
 
 public record TableAnalysisResult

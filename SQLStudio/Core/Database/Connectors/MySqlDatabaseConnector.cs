@@ -71,21 +71,18 @@ public class MySqlDatabaseConnector : BaseDatabaseConnector
 
         var tables = await GetTablesAsync(cancellationToken).ConfigureAwait(false);
         
-        // 并行获取所有表的结构信息以提高性能
-        var tasks = tables.Select(async tableName =>
+        // 顺序获取表结构信息（MySQL 连接不支持并发查询）
+        foreach (var tableName in tables)
         {
             var columns = await GetTableColumnsAsync(tableName, cancellationToken).ConfigureAwait(false);
             var sampleData = await GetTableSampleDataAsync(tableName, columns, cancellationToken).ConfigureAwait(false);
-            return new TableInfo
+            schema.Tables.Add(new TableInfo
             {
                 TableName = tableName,
                 Columns = columns,
                 SampleData = sampleData
-            };
-        });
-
-        var tableInfos = await Task.WhenAll(tasks).ConfigureAwait(false);
-        schema.Tables.AddRange(tableInfos);
+            });
+        }
 
         return schema;
     }

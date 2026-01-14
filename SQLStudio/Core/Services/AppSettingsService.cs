@@ -10,6 +10,7 @@ public class AppSettings
 {
     public DatabaseSettings Database { get; set; } = new();
     public AiSettings Ai { get; set; } = new();
+    public KnowledgeSettings Knowledge { get; set; } = new();
 }
 
 public class DatabaseSettings
